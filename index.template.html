@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#071725"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><title>NEON DESCENT</title><link rel="manifest" href="manifest.webmanifest"><style>/*STYLE*/</style></head>
+<body data-mode="title">
+<canvas id="game" aria-label="Neon Descent game world"></canvas>
+<header id="hud"><div id="hud-content"></div><div class="tools"><button id="sound" aria-label="Toggle sound">♪</button><button id="full" aria-label="Toggle fullscreen">⛶</button><button id="pause" aria-label="Pause">Ⅱ</button></div></header>
+<div class="subhud"><span id="weapon"></span><span id="timer"></span></div><div id="keycards"></div><div id="fuel" hidden></div>
+<div id="messages"></div><div id="context" hidden></div>
+<div id="touch">
+<div class="pad"><button class="up" data-input="up" aria-label="Up">⌃</button><button class="left" data-input="left" aria-label="Left">‹</button><span class="pad-center">MOVE</span><button class="right" data-input="right" aria-label="Right">›</button><button class="down" data-input="down" aria-label="Down">⌄</button></div>
+<div class="actions"><button class="bomb" data-input="bomb" aria-label="Plasma charge">✳<small>CHARGE</small></button><button class="cable" data-input="cable" aria-label="Mag cable">⌁<small>CABLE</small></button><button class="attack" data-input="attack" aria-label="Attack">╱<small>ATTACK</small></button><button class="jump" data-input="jump" aria-label="Jump">↟<small>JUMP</small></button><button class="use" data-input="interact" aria-label="Interact">⊙<small id="use-label">USE</small></button></div>
+</div>
+<main id="panel"></main><div id="rotate"><div class="rotate-icon">↻</div><strong>Turn your device sideways.</strong><span>NEON DESCENT is built for landscape.<br>Enable auto-rotate, then turn your phone.</span></div><pre id="failure" hidden></pre>
+<script>window.addEventListener('error',function(e){var p=document.getElementById('failure');p.hidden=false;p.textContent='NEON DESCENT encountered an error.\n'+e.message+'\nReload to restart. Please share this message if it happens again.';});</script>
+<script>/*CORE*/</script><script>/*GAME*/</script><script>/*RENDER*/</script><script>/*UI*/</script>
+</body></html>

@@ -1,0 +1,151 @@
+{
+  "date": "2026-09-13T04:36:55.381Z",
+  "passed": 35,
+  "failed": 0,
+  "results": [
+    {
+      "metric": "generatorRepairs",
+      "value": 1102
+    },
+    {
+      "name": "1,024 seeded stages validate before and after optional rooms",
+      "pass": true
+    },
+    {
+      "name": "Seed repeats the same terrain, room templates, loot and exit",
+      "pass": true
+    },
+    {
+      "name": "Generator produces visibly distinct maps",
+      "pass": true
+    },
+    {
+      "name": "Jump height changes with boots; tap jump is shorter",
+      "pass": true
+    },
+    {
+      "name": "Coyote jump and grounded movement brake responsively",
+      "pass": true
+    },
+    {
+      "name": "Bomb consumes a charge and destroys actual terrain",
+      "pass": true
+    },
+    {
+      "name": "Explosion damage, crate impulse and reactor chain reaction",
+      "pass": true
+    },
+    {
+      "name": "Steel needs two normal hits; boundaries and barriers resist blasts",
+      "pass": true
+    },
+    {
+      "name": "Mag cable consumes one cable and supports climbing",
+      "pass": true
+    },
+    {
+      "name": "Grip gloves allow wall climbing",
+      "pass": true
+    },
+    {
+      "name": "Traction boots prevent electric floor damage",
+      "pass": true
+    },
+    {
+      "name": "Adhesive charge attaches on contact",
+      "pass": true
+    },
+    {
+      "name": "Glide, jet and hover affect flight; backpacks swap",
+      "pass": true
+    },
+    {
+      "name": "Emergency decelerator triggers once and reduces a dangerous fall",
+      "pass": true
+    },
+    {
+      "name": "Fall damage and death end a run; restart clears state",
+      "pass": true
+    },
+    {
+      "name": "Power core increases melee and plasma blast reach",
+      "pass": true
+    },
+    {
+      "name": "Shotgun fires spread; all ranged weapons spend ammo and damage",
+      "pass": true
+    },
+    {
+      "name": "Frozen targets shatter when struck again",
+      "pass": true
+    },
+    {
+      "name": "Bolt sticks into wall and can be recovered",
+      "pass": true
+    },
+    {
+      "name": "Phase teleporter skips a wall but never places player inside it",
+      "pass": true
+    },
+    {
+      "name": "Plasma cutter removes tiles and spends durability",
+      "pass": true
+    },
+    {
+      "name": "Disc returns; mono-blade has longer reach and damage",
+      "pass": true
+    },
+    {
+      "name": "Riot barrier blocks incoming front projectile",
+      "pass": true
+    },
+    {
+      "name": "Supplies add charges/cables/health; scanners equip",
+      "pass": true
+    },
+    {
+      "name": "Keys and Master Override unlock optional doors; explosives breach them",
+      "pass": true
+    },
+    {
+      "name": "Shop inspection and purchase charge money without hostility",
+      "pass": true
+    },
+    {
+      "name": "Returning inspected stock leaves it for sale",
+      "pass": true
+    },
+    {
+      "name": "Stealing provokes merchant and wanted status carries to later stages",
+      "pass": true
+    },
+    {
+      "name": "Merchant aggressively pursues and fires when angered",
+      "pass": true
+    },
+    {
+      "name": "Carrying/throwing a crate damages an enemy and releases loot",
+      "pass": true
+    },
+    {
+      "name": "Mines respond to enemy bodies and chain with bombs",
+      "pass": true
+    },
+    {
+      "name": "All ten enemy types update safely and can take damage",
+      "pass": true
+    },
+    {
+      "name": "Null Warden warns before spawning away from the player",
+      "pass": true
+    },
+    {
+      "name": "Exit interaction advances stages and fourth exit wins",
+      "pass": true
+    },
+    {
+      "name": "Pause freezes timers and resumes play",
+      "pass": true
+    }
+  ]
+}
