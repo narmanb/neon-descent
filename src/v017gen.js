@@ -28,6 +28,12 @@
     return repaired;
   }
 
+  function tuneTrapHitboxes(l){
+    // Mines are visually tiny and sit low on the floor. Give normal horizontal
+    // gunfire a few extra pixels of vertical tolerance without changing damage.
+    for(const t of l.traps||[])if(t.type==='mine'){t.w=Math.max(t.w||0,28);t.h=Math.max(t.h||0,16);}
+  }
+
   ND.softenTightChokes=softenTightChokes;
-  ND.generate=function(seed,stage=1){const l=previousGenerate(seed,stage);softenTightChokes(l);return l;};
+  ND.generate=function(seed,stage=1){const l=previousGenerate(seed,stage);softenTightChokes(l);tuneTrapHitboxes(l);return l;};
 })();
