@@ -15,6 +15,7 @@ on:
       - feature-v017-combat-camera-debug
       - feature-v018-half-blocks-fullscreen
       - feature-chunk-maker-v1
+      - feature-chunk-maker-mobile-pan
     paths:
       - 'src/**'
       - 'tools/**'
