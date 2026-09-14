@@ -1,10 +1,10 @@
 from pathlib import Path
 import shutil
 root=Path(__file__).parent
-VERSION='0.13'
+VERSION='0.14'
 versioned=f'Neon-Descent-v{VERSION}.html'
 html=(root/'index.template.html').read_text()
-for name in ['style','core','genpolish','game','grip','render','ui','ledge','polish','climbpolish','trappolish','debugtools','v013polish','release']:
+for name in ['style','core','genpolish','game','grip','render','ui','ledge','v014pre','polish','climbpolish','trappolish','debugtools','v013polish','v014polish','release']:
     html=html.replace('/*'+name.upper()+'*/',(root/'src'/f'{name}.{ "css" if name=="style" else "js"}').read_text())
 html=html.replace('__NEON_VERSION__',VERSION)
 (root/'Neon-Descent.html').write_text(html)
