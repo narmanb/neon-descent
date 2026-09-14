@@ -362,6 +362,45 @@ if(typeof module!=='undefined')module.exports=ND;
   };
 })();
 </script><script>'use strict';
+(() => {
+  const previousGenerate=ND.generate;
+  const candidateTypes=new Set([ND.TILE.WALL,ND.TILE.GLASS,ND.TILE.CRUMBLE]);
+
+  function isTightIsolatedObstacle(l,x,y){
+    const t=ND.tileAt(l,x,y);
+    if(!candidateTypes.has(t))return false;
+    if(ND.solid(l,x-1,y)||ND.solid(l,x+1,y))return false;
+    // Full block on a floor + one air tile + a solid ceiling creates the
+    // awkward 32px squeeze seen in playtesting. Require two body rows instead.
+    return ND.solid(l,x,y+1)&&!ND.solid(l,x,y-1)&&ND.solid(l,x,y-2);
+  }
+
+  function softenTightChokes(l){
+    let repaired=0;
+    for(let y=3;y<ND.C.rows-2;y++)for(let x=2;x<ND.C.cols-2;x++){
+      if(!isTightIsolatedObstacle(l,x,y))continue;
+      ND.setTile(l,x,y,ND.TILE.AIR);l.ladders[y*ND.C.cols+x]=0;repaired++;
+      const floorY=(y+1)*32,centerX=(x+.5)*32;
+      // Static hazards generated on top of the removed block should settle onto
+      // the real floor instead of floating in mid-air.
+      for(const t of l.traps||[])if(Math.abs(t.x-centerX)<18&&Math.abs(t.y-y*32)<12)t.y=floorY;
+      for(const s of l.spawns||[])if(Math.abs(s.x-centerX)<18&&Math.abs(s.y-y*32)<12)s.y=floorY;
+    }
+    l.tightChokeRepairs=(l.tightChokeRepairs||0)+repaired;
+    if(repaired)l.validation=ND.validate(l);
+    return repaired;
+  }
+
+  function tuneTrapHitboxes(l){
+    // Mines are visually tiny and sit low on the floor. Give normal horizontal
+    // gunfire a few extra pixels of vertical tolerance without changing damage.
+    for(const t of l.traps||[])if(t.type==='mine'){t.w=Math.max(t.w||0,28);t.h=Math.max(t.h||0,16);}
+  }
+
+  ND.softenTightChokes=softenTightChokes;
+  ND.generate=function(seed,stage=1){const l=previousGenerate(seed,stage);softenTightChokes(l);tuneTrapHitboxes(l);return l;};
+})();
+</script><script>'use strict';
 Object.assign(window,{ND});
 const {C,TILE,ITEMS,item,rng,clamp,approach,dist,tileAt,setTile,solid,blocked,body,move,ladder,generate}=ND;
 const Game = {
@@ -1167,6 +1206,21 @@ boot();
 })();
 </script><script>'use strict';
 (() => {
+  // v0.17 camera migration. 150% is now the intended default. Preserve any
+  // deliberately customized zoom, but move untouched legacy defaults forward.
+  const key='neon-polish-settings';
+  try{
+    const saved=JSON.parse(localStorage.getItem(key)||'{}');
+    if((saved.viewRevision||0)<3){
+      const z=saved.zoom===undefined?undefined:Number(saved.zoom);
+      if(z===undefined||Math.abs(z-1.12)<.001||Math.abs(z-1.18)<.001)saved.zoom=1.50;
+      saved.viewRevision=3;
+      localStorage.setItem(key,JSON.stringify(saved));
+    }
+  }catch{}
+})();
+</script><script>'use strict';
+(() => {
   const defaults={controlMode:'dpad',touchVisible:true,zoom:1.18};
   let settings={...defaults};
   try{settings={...settings,...JSON.parse(localStorage.getItem('neon-polish-settings')||'{}')};}catch{}
@@ -1295,6 +1349,30 @@ boot();
     this.line(7,-27,14,-30,'#73e0b6',3);this.line(7,-17,14,-20,'#73e0b6',3);this.circle(14,-30,3,'#b9fff0');this.circle(14,-20,3,'#b9fff0');
     c.globalAlpha=pulse;this.line(16,-34,20,-38,'#8ff7ff',1);this.line(17,-25,22,-26,'#8ff7ff',1);this.line(16,-15,20,-11,'#8ff7ff',1);c.restore();
   };
+})();
+</script><script>'use strict';
+(() => {
+  if(typeof Render==='undefined')return;
+
+  function stableReferenceHeight(viewportHeight,screenWidth,screenHeight,touchPoints){
+    const vh=Math.max(1,Number(viewportHeight)||1),sw=Number(screenWidth)||vh,sh=Number(screenHeight)||vh;
+    const shortSide=Math.max(1,Math.min(sw,sh)),ratio=shortSide/vh;
+    // Mobile browser chrome changes innerHeight between normal and fullscreen.
+    // Use the physical screen short side as the scale reference when it is a
+    // plausible match, so world pixels stay the same size in both modes.
+    if(Number(touchPoints)>0&&ratio>=.98&&ratio<=1.55)return shortSide;
+    return vh;
+  }
+
+  window.NeonCameraMath={stableReferenceHeight};
+  Render.resize=function(){
+    const d=Math.min(window.devicePixelRatio||1,2),vh=Math.max(1,innerHeight),vw=Math.max(1,innerWidth);
+    const refH=stableReferenceHeight(vh,window.screen?.width,window.screen?.height,navigator.maxTouchPoints||0);
+    const baseViewH=440/(this.zoom||1),viewH=baseViewH*(vh/refH);
+    this.canvas.width=Math.round(vw*d);this.canvas.height=Math.round(vh*d);
+    this.w=vw/vh*viewH;this.h=viewH;this.scale=this.canvas.height/viewH;
+  };
+  Render.resize();
 })();
 </script><script>'use strict';
 (() => {
@@ -1916,7 +1994,246 @@ boot();
 })();
 </script><script>'use strict';
 (() => {
-  const VERSION='0.16';
+  if(typeof Game==='undefined')return;
+
+  const destructibleTrap=t=>t&&!t.dead&&['turret','laser','mine'].includes(t.type);
+  function prepTrap(t){
+    if(!t)return t;t.kind=t.kind||'trap';
+    if(t.type==='turret'){t.w=t.w||28;t.h=t.h||24;t.maxHp=t.maxHp||4;t.hp=t.hp??t.maxHp;}
+    else if(t.type==='laser'){t.w=t.w||18;t.h=t.h||28;t.maxHp=t.maxHp||3;t.hp=t.hp??t.maxHp;}
+    else if(t.type==='mine'){t.w=t.w||28;t.h=t.h||12;}
+    return t;
+  }
+  function lineClear(l,ax,ay,bx,by){
+    const dx=bx-ax,dy=by-ay,d=Math.hypot(dx,dy),steps=Math.max(1,Math.ceil(d/7));
+    for(let i=1;i<steps;i++){
+      const x=ax+dx*i/steps,y=ay+dy*i/steps;
+      if(ND.solid(l,Math.floor(x/32),Math.floor(y/32)))return false;
+    }
+    return true;
+  }
+  function trapContains(t,x,y,pad=3){
+    prepTrap(t);return destructibleTrap(t)&&Math.abs(x-t.x)<t.w/2+pad&&y>t.y-t.h-pad&&y<t.y+pad;
+  }
+  function damageTrap(t,amount,sx=t.x,sy=t.y,source='world',attacker=null){
+    prepTrap(t);if(!destructibleTrap(t))return false;
+    if(t.type==='mine'){
+      t.armed=Math.min(t.armed??.08,.08);t.hit=.14;Game.fx(t.x,t.y-7,'#ffad86',6,70);return true;
+    }
+    t.hp-=amount;t.hit=.18;Game.float('-'+amount,t.x,t.y-t.h-5,'#fff2ce');Game.fx(t.x,t.y-t.h*.45,'#73d9de',7,80);
+    if(t.hp<=0){t.dead=true;Game.fx(t.x,t.y-t.h*.45,'#ffad73',18,150);Game.float('OFFLINE',t.x,t.y-t.h-12,'#a6fff1');Game.sound('hit');}
+    return true;
+  }
+  Game.lineClear=lineClear;Game.damageTrap=damageTrap;
+
+  // Merchants only flag the player when the player is actually responsible.
+  // If a world device/enemy shoots Q-9, remember that attacker for a temporary
+  // retaliation run, then return to the normal shop home position afterwards.
+  const previousDamage=Game.damage;
+  Game.damage=function(target,amount,sx,sy,source='world',blast=false,attacker=null){
+    const hit=previousDamage.call(this,target,amount,sx,sy,source,blast);
+    if(hit&&!target.dead&&target.type==='merchant'&&source!=='player'&&attacker&&attacker!==target&&!attacker.dead){
+      if(target.retaliate!==attacker)this.message('Q-9 / hostile source acquired.',1.8);
+      target.retaliate=attacker;target.returningToShop=false;
+    }
+    return hit;
+  };
+
+  function updateMerchantRetaliation(e,dt){
+    const l=Game.l,shop=l.shops[e.shop];if(shop?.angry)return false;
+    if(e.retaliate?.dead){e.retaliate=null;e.returningToShop=true;}
+    if(!e.retaliate&&!e.returningToShop)return false;
+    e.cool-=dt;e.hit=Math.max(0,e.hit-dt);e.stun=Math.max(0,e.stun-dt);e.foam=Math.max(0,e.foam-dt);e.freeze=Math.max(0,e.freeze-dt);
+    if(e.freeze>0||e.foam>0){e.vx=0;e.vy+=ND.C.gravity*dt;ND.move(l,e,dt);return true;}
+    if(e.stun>0){e.vy=Math.min(700,e.vy+ND.C.gravity*dt);e.vx*=.985;ND.move(l,e,dt);return true;}
+    const target=e.retaliate,tx=target?target.x:e.homeX,ty=target?target.y:e.homeY,dx=tx-e.x,dy=ty-e.y,near=Math.hypot(dx,dy);
+    if(!target&&near<18&&Math.abs(dy)<34){e.returningToShop=false;e.vx=0;e.dir=-1;e.vy=Math.min(700,e.vy+ND.C.gravity*dt);ND.move(l,e,dt);return true;}
+    e.dir=Math.sign(dx)||e.dir||1;e.vx=ND.approach(e.vx,e.dir*195,900*dt);
+    if(e.ground&&(e.wall||!ND.solid(l,Math.floor((e.x+e.dir*26)/32),Math.floor((e.y+5)/32))||dy<-40))e.vy=-420;
+    if(target&&e.cool<0&&near<450&&Math.abs(dy)<125&&lineClear(l,e.x+e.dir*13,e.y-e.h*.55,target.x,target.y-(target.h||24)*.5)){
+      const angle=ND.clamp(Math.atan2((target.y-(target.h||24)*.5)-(e.y-e.h*.55),Math.max(1,Math.abs(dx))),-.48,.48);
+      Game.fire(e,'shotgun',e.dir,'merchant',angle);e.cool=1.0;
+    }
+    e.vy=Math.min(700,e.vy+ND.C.gravity*dt);ND.move(l,e,dt);
+    if(e.wall&&e.ground)e.vy=-ND.C.jump;
+    return true;
+  }
+  const previousUpdateEnemy=Game.updateEnemy;
+  Game.updateEnemy=function(e,dt){if(e.type==='merchant'&&updateMerchantRetaliation(e,dt))return;return previousUpdateEnemy.call(this,e,dt);};
+
+  // Turrets now require an unobstructed firing lane. Laser emitters also respect
+  // intervening walls for damage, matching what the player can see on screen.
+  Game.updateTraps=function(dt){
+    const targets=[this.p,...this.entities.filter(e=>e.kind==='enemy'||e.kind==='crate')];
+    for(const t of this.l.traps){
+      if(t.dead)continue;t.cool=Math.max(0,t.cool-dt);t.hit=Math.max(0,(t.hit||0)-dt);prepTrap(t);const cycle=(this.time+t.phase)%3.3;
+      t.active=t.type==='electric'||t.type==='spikes'?cycle<1.7:t.type==='laser'?cycle<1.2:true;
+      if(t.type==='mine'){
+        if(t.armed!==undefined){t.armed-=dt;if(t.armed<=0){t.dead=true;this.explode(t.x,t.y-7,74,'world');}}
+        else if(targets.some(e=>!e.dead&&Math.abs(e.x-t.x)<23&&Math.abs(e.y-t.y)<24))t.armed=.45;
+      }else if(t.type==='turret'){
+        const target=targets.find(e=>!e.dead&&(e===this.p||e.kind==='enemy')&&Math.abs(e.y-t.y)<34&&Math.abs(e.x-t.x)<300&&lineClear(this.l,t.x,t.y-13,e.x,e.y-e.h*.5));
+        if(target&&t.cool<=0){t.dir=Math.sign(target.x-t.x)||1;this.fire(t,'pulse',t.dir,'world');t.cool=1.9;}
+      }else{
+        if(t.type==='crusher'){t.headY=t.y-100+(Math.pow(Math.max(0,Math.sin((this.time+t.phase)*1.6)),5))*92;}
+        for(const e of targets){if(e.dead||!t.active||e.kind==='crate')continue;
+          const hit=t.type==='laser'?Math.abs(e.y-(t.y-12))<27&&Math.abs(e.x-t.x)<70&&lineClear(this.l,t.x,t.y-12,e.x,e.y-e.h*.5):t.type==='crusher'?Math.abs(e.x-t.x)<23&&e.y-e.h<t.headY+20&&e.y>t.headY:Math.abs(e.x-t.x)<20&&Math.abs(e.y-t.y)<18;
+          if(hit&&!(t.type==='electric'&&e===this.p&&e.passives.has('traction'))&&t.cool<=0){this.damage(e,t.type==='crusher'?4:t.type==='spikes'?2:1,t.x,t.y,'world',false,t.type==='laser'?t:null);t.cool=.5;}
+        }
+      }
+    }
+  };
+
+  // Projectile collision now includes the visible trap hardware. Mines detonate;
+  // turrets and laser emitters can be shot offline.
+  Game.updateShots=function(dt){
+    for(const s of this.shots){
+      s.life-=dt;if(s.type==='disc'&&s.life<.8){const dx=this.p.x-s.x,dy=this.p.y-14-s.y,d=Math.hypot(dx,dy);if(d<18){s.life=0;continue;}s.vx=dx/d*420;s.vy=dy/d*420;}
+      const steps=Math.ceil(Math.hypot(s.vx,s.vy)*dt/6);for(let j=0;j<steps&&s.life>0;j++){
+        s.x+=s.vx*dt/steps;s.y+=s.vy*dt/steps;let tx=Math.floor(s.x/32),ty=Math.floor(s.y/32),tile=ND.tileAt(this.l,tx,ty);
+        if(tile&&s.type!=='disc'){
+          if(tile===ND.TILE.GLASS||tile===ND.TILE.REACTOR)this.breakTile(tx,ty,1,s.owner);
+          if(s.type==='bolt')this.spawn({kind:'boltPickup',x:s.x-Math.sign(s.vx)*12,y:s.y,vy:0});
+          if(tile===ND.TILE.STEEL&&!s.bounced&&s.type==='pulse'){s.vx*=-.8;s.bounced=true;this.fx(s.x,s.y,'#c4e9ff',4);}
+          else s.life=0;
+        }
+        if(s.life<=0)continue;
+        let hitTrap=false;
+        for(const t of this.l.traps){
+          if(!destructibleTrap(t)||s.hits.has(t)||!trapContains(t,s.x,s.y))continue;
+          damageTrap(t,s.damage+(s.owner==='player'&&this.p.back==='core'?1:0),s.x-s.vx*.03,s.y,s.owner,s.from);s.hits.add(t);if(s.type!=='disc')s.life=0;hitTrap=true;break;
+        }
+        if(hitTrap&&s.life<=0)continue;
+        for(const e of [...this.entities,this.p]){
+          if(e===s.from||e.dead||e.held||s.hits.has(e)||!(e===this.p||e.kind==='enemy'||e.kind==='crate'||e.kind==='bomb'||e.kind==='switch'))continue;
+          if(Math.abs(s.x-e.x)<e.w/2+3&&s.y>e.y-e.h&&s.y<e.y){
+            if(e===this.p&&this.p.hand==='shield'&&Math.sign(s.x-this.p.x)===this.p.face){this.fx(s.x,s.y,'#8ff7ff',6);s.life=0;break;}
+            if(e.kind==='bomb')e.fuse=.05;else if(e.kind==='crate')this.openCrate(e,s.owner);else if(e.kind==='switch')this.togglePower(e);
+            else{this.damage(e,s.damage+(s.owner==='player'&&this.p.back==='core'?1:0),s.x-s.vx*.03,s.y,s.owner,false,s.from);if(s.type==='cryo'&&e!==this.p)e.freeze=3;if(s.type==='foam'&&e!==this.p)e.foam=4;}
+            s.hits.add(e);if(s.type!=='disc')s.life=0;break;
+          }
+        }
+      }
+    }
+    this.shots=this.shots.filter(s=>s.life>0);
+  };
+
+  // Keep the original weapon balance but make close-range contact edge-aware.
+  // This especially helps low-profile slugs and allows melee to disable traps.
+  function meleeContains(p,x,y,w,h,reach){
+    const forward=(x-p.x)*p.face,pt=p.y-p.h-8,pb=p.y+8,et=y-h,eb=y;
+    return forward>-(w/2+5)&&forward<reach+w/2&&eb>pt&&et<pb;
+  }
+  const previousAttack=Game.attack;
+  Game.attack=function(){
+    const p=this.p;if(!p)return previousAttack.call(this);
+    const hand=p.hand,ready=p.cool<=0&&p.stun<=0&&!p.held,melee=ready&&!['shotgun','cryo','bolt','foam','phase','disc'].includes(hand),ammoOk=hand!=='cutter'||p.ammo>0;
+    const before=new Map(this.entities.filter(e=>e.kind==='enemy'&&!e.dead).map(e=>[e,e.hp]));
+    previousAttack.call(this);
+    if(!melee||!ammoOk||p.attack<=0)return;
+    const reach=hand==='blade'?76:hand==='cutter'?58:50,dmg=(hand==='blade'?3:1)+(p.back==='core'?1:0);
+    for(const e of this.entities){
+      if(e.dead||e.kind!=='enemy'||before.get(e)!==e.hp)continue;
+      if(meleeContains(p,e.x,e.y,e.w,e.h,reach))this.damage(e,dmg,p.x,p.y,'player');
+    }
+    for(const t of this.l.traps){
+      if(!destructibleTrap(t)){continue;}prepTrap(t);
+      if(meleeContains(p,t.x,t.y,t.w,t.h,reach))damageTrap(t,dmg,p.x,p.y,'player',p);
+    }
+  };
+})();
+</script><script>'use strict';
+(() => {
+  if(typeof UI==='undefined'||typeof Render==='undefined')return;
+
+  const style=document.createElement('style');
+  style.textContent=`
+    .nd-debug-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:9px 0}
+    .nd-debug-grid button,.nd-debug-grid select{min-height:32px;border:1px solid #49694b;background:#102219;color:#c5dfbd;border-radius:2px;padding:6px 8px;font:700 8px ui-monospace,monospace;letter-spacing:.4px}
+    .nd-debug-grid select{grid-column:1/-1;width:100%}.nd-debug-grid button.primary{background:#78966f;color:#07130f;border-color:#a7c69d}
+    .nd-debug-note{font:7px ui-monospace,monospace;color:#719071;line-height:1.5;border-top:1px dashed #365039;padding-top:7px;margin-top:8px}
+    @media(max-width:620px){.nd-debug-grid{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(style);
+
+  const pauseComputer=UI.pause.bind(UI);
+  function spawnItem(id){
+    const p=Game.p;if(!p||!item[id])return;
+    let x=p.x+p.face*42;if(ND.blocked(Game.l,x,p.y,p.w,p.h))x=p.x-p.face*42;
+    Game.spawn({kind:'item',id,x,y:p.y-8,vy:-70,pickDelay:0});Game.message('DEBUG / spawned '+item[id].name,2.2);
+  }
+  function giveItem(id){if(!Game.p||!item[id])return;Game.equip({kind:'item',id,dead:false});Game.message('DEBUG / equipped '+item[id].name,2.2);}
+  function status(t){const e=document.getElementById('nd-debug-status');if(e)e.textContent=t;}
+
+  function injectDebugNav(){
+    const tabs=document.querySelector('.nd-pc-tabs');
+    if(tabs&&!document.getElementById('nd-debug-tab')){
+      const b=document.createElement('button');b.className='nd-pc-tab';b.id='nd-debug-tab';b.textContent='DEBUG';b.onclick=showDebug;tabs.appendChild(b);
+    }
+    const sides=document.querySelectorAll('.nd-pc-side');const side=sides[sides.length-1];
+    if(side&&!document.getElementById('nd-debug-side')){
+      const b=document.createElement('button');b.className='nd-pc-sidebtn';b.id='nd-debug-side';b.textContent='DEBUG';b.onclick=showDebug;
+      const label=side.querySelector('.nd-pc-label');side.insertBefore(b,label||side.lastChild);
+    }
+  }
+
+  function showDebug(){
+    pauseComputer();injectDebugNav();
+    const head=document.querySelector('.nd-crt-head span'),inner=document.querySelector('.nd-crt-inner'),tabs=document.querySelector('.nd-pc-tabs');if(!inner||!tabs)return;
+    if(head)head.textContent='NEON DESCENT // FIELD DIAGNOSTICS';
+    tabs.querySelectorAll('.nd-pc-tab').forEach(b=>b.classList.toggle('active',b.id==='nd-debug-tab'));
+    let n=tabs.nextSibling;while(n){const next=n.nextSibling;n.remove();n=next;}
+    const options=ITEMS.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+    const body=document.createElement('div');body.innerHTML=`<div class="nd-pc-kicker">TEMPORARY QA BUS / RUN-LOCAL TOOLS</div><div class="nd-pc-title">DEBUG</div><div class="nd-debug-grid">
+      <button class="primary" id="dbg-grip">GIVE GRIP GLOVES</button><button id="dbg-heal">FULL HEAL</button>
+      <select id="dbg-item" aria-label="Debug item">${options}</select>
+      <button id="dbg-spawn">SPAWN SELECTED</button><button id="dbg-give">GIVE / EQUIP SELECTED</button>
+      <button id="dbg-bombs">+4 CHARGES</button><button id="dbg-cables">+4 CABLES</button>
+      <button id="dbg-money">+1000 CREDITS</button><button id="dbg-resume">RESUME TEST</button>
+    </div><div class="nd-debug-note" id="nd-debug-status">Run-only testing tools. They do not alter procedural generation or future runs.</div>`;
+    while(body.firstChild)inner.appendChild(body.firstChild);
+    const sel=document.getElementById('dbg-item');if(sel)sel.value='grip';
+    document.getElementById('dbg-grip').onclick=()=>{giveItem('grip');status('Magnetic Grip Gloves equipped. Resume and hold UP against a wall.');};
+    document.getElementById('dbg-heal').onclick=()=>{Game.p.hp=Game.p.maxHp;status('Health restored to '+Game.p.maxHp+'.');};
+    document.getElementById('dbg-spawn').onclick=()=>{spawnItem(sel.value);status(item[sel.value].name+' spawned beside the player.');};
+    document.getElementById('dbg-give').onclick=()=>{giveItem(sel.value);status(item[sel.value].name+' granted directly.');};
+    document.getElementById('dbg-bombs').onclick=()=>{Game.p.bombs+=4;status('+4 plasma charges.');};
+    document.getElementById('dbg-cables').onclick=()=>{Game.p.cables+=4;status('+4 mag-cables.');};
+    document.getElementById('dbg-money').onclick=()=>{Game.p.money+=1000;status('+1000 credits.');};
+    document.getElementById('dbg-resume').onclick=()=>Game.pause();
+  }
+
+  // v0.17's intended default is 150%. The pre-migration sets it on untouched
+  // installs; these hooks also make every visible RESTORE DEFAULTS path agree.
+  const settingsApi=window.NeonPolishSettings;
+  if(settingsApi){settingsApi.reset=()=>settingsApi.update({controlMode:'dpad',touchVisible:true,zoom:1.50});}
+  function patchLegacyDefaults(){
+    const b=document.getElementById('opt-defaults');if(!b||b.dataset.v017Default)return;b.dataset.v017Default='1';
+    b.onclick=()=>{
+      settingsApi?.update?.({controlMode:'dpad',touchVisible:true,zoom:1.50});UI.opacity=.62;UI.size=1;UI.applyControls();
+      const control=document.getElementById('opt-control'),touch=document.getElementById('opt-touch'),zoom=document.getElementById('opt-zoom'),zv=document.getElementById('opt-zoom-value'),opacity=document.getElementById('opt-opacity'),size=document.getElementById('opt-size');
+      if(control)control.value='dpad';if(touch)touch.checked=true;if(zoom)zoom.value='1.50';if(zv)zv.textContent='150%';if(opacity)opacity.value=UI.opacity;if(size)size.value=UI.size;
+    };
+  }
+
+  UI.pause=function(){pauseComputer();injectDebugNav();};
+  const panel=document.getElementById('panel');if(panel)new MutationObserver(()=>{injectDebugNav();patchLegacyDefaults();}).observe(panel,{childList:true,subtree:true});
+  patchLegacyDefaults();
+  window.NeonDebugPage={show:showDebug,inject:injectDebugNav};
+
+  // Damaged trap hardware gets a compact condition bar so shots clearly register.
+  const baseTrap=Render.trap;
+  Render.trap=function(t){
+    baseTrap.call(this,t);if(t.dead)return;
+    if((t.type==='turret'||t.type==='laser')&&t.maxHp&&t.hp<t.maxHp){
+      const w=24,x=t.x-w/2,y=t.y-(t.h||24)-7;this.rect(x,y,w,2,'#3b4a4d');this.rect(x,y,w*Math.max(0,t.hp)/t.maxHp,2,'#ffad7b');
+    }
+    if(t.hit>0)this.glow(t.x,t.y-(t.h||20)*.5,24,'#a9ffff22');
+  };
+})();
+</script><script>'use strict';
+(() => {
+  const VERSION='0.17';
   window.NEON_VERSION=VERSION;
 
   const style=document.createElement('style');
