@@ -42,3 +42,4 @@ jobs:
             git commit -m "Build playable Neon Descent artifacts"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
+# Feature-branch validation before main promotion.
