@@ -1115,7 +1115,7 @@ boot();
     #analog-knob{position:absolute;left:33px;top:33px;width:50px;height:50px;border-radius:50%;background:#75cbbcaa;border:1px solid #caffedaa;box-shadow:0 3px 12px #04111e88;transform:translate(0,0)}
     body.touch-off #touch,body.touch-off #analog-layer{display:none!important}
     body.control-fixed #touch .pad,body.control-floating #touch .pad{display:none!important}
-    body.control-fixed #analog-base{display:block;left:max(27px,env(safe-area-inset-left));bottom:25px;pointer-events:auto}
+    body.control-fixed #analog-base{display:block;left:max(27px,env(safe-area-inset-left));top:auto;bottom:25px;pointer-events:auto}
     body.control-floating #analog-catch{pointer-events:auto}
     body.control-floating #analog-base.active{display:block}
     .options-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;margin:18px 0 24px}
@@ -1153,6 +1153,8 @@ boot();
   catchZone.addEventListener('pointerdown',e=>start(e,true));catchZone.addEventListener('pointermove',move);catchZone.addEventListener('pointerup',end);catchZone.addEventListener('pointercancel',end);
 
   function apply(){
+    pointer=null;Input.analog.x=Input.analog.y=0;knob.style.transform='translate(0px,0px)';base.classList.remove('active');
+    if(settings.controlMode==='fixed'){base.style.left='';base.style.top='';base.style.bottom='';}
     document.body.classList.toggle('touch-off',!settings.touchVisible);
     document.body.classList.remove('control-dpad','control-fixed','control-floating');document.body.classList.add('control-'+settings.controlMode);
     Render.zoom=settings.zoom;Render.resize();save();
