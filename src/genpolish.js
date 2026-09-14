@@ -3,6 +3,21 @@
   const baseGenerate=ND.generate;
   const specialMimic=(l,s)=>s.type==='mimic'&&l.secrets.some(q=>Math.hypot(q.x-s.x,q.y-s.y)<70);
 
+  function dropRouteConflictingShops(l){
+    const removed=new Set(),remap=new Map(),kept=[];
+    for(const q of l.shops){
+      const x0=Math.round(q.x/32),y0=Math.round(q.y/32),x1=x0+Math.round(q.w/32)-1,floorY=y0+Math.round(q.h/32);
+      const conflict=l.route.some(r=>r.row<3&&r.shaft>=x0&&r.shaft<=x1&&r.floor-3<=floorY+1&&r.floor+7>=y0);
+      if(conflict){removed.add(q.id);continue;}
+      const old=q.id;q.id=kept.length;remap.set(old,q.id);kept.push(q);
+    }
+    if(!removed.size)return;
+    l.spawns=l.spawns.filter(s=>s.shop===undefined||!removed.has(s.shop));
+    for(const s of l.spawns)if(s.shop!==undefined)s.shop=remap.get(s.shop);
+    for(const room of l.rooms)if(room.shop!==undefined){if(removed.has(room.shop))delete room.shop;else room.shop=remap.get(room.shop);}
+    l.shops=kept;
+  }
+
   function encloseShops(l){
     const protectedCells=new Set();
     for(const s of l.route)if(s.row<3)for(let y=s.floor-3;y<s.floor+8;y++){
@@ -23,11 +38,9 @@
       ND.setTile(l,x0,y0+2,0);
       ND.setTile(l,x0,y0+3,0);
 
-      // Shops are currently single-story. A certified route ladder can be generated through
-      // the same room before shop dressing happens, which makes it appear to pierce the
-      // shop floor. Remove ladder cells from the shop volume and one tile beneath its floor.
-      // The lower route ladder still begins at the public corridor below, while the intended
-      // shop approach ladder at x0-1 remains untouched.
+      // Shops are currently single-story. Remove any template ladder remnants from
+      // the shop volume and the first tile beneath its floor. Certified route ladders
+      // are handled before this pass by dropping the conflicting shop instead.
       for(let y=y0;y<=floorY+1;y++)for(let x=x0;x<=x1;x++)l.ladders[y*ND.C.cols+x]=0;
 
       // Do not refill any floor cells the route-repair pass intentionally carved for a descent shaft.
@@ -107,6 +120,7 @@
 
   ND.generate=function(seed,stage=1){
     const l=baseGenerate(seed,stage);
+    dropRouteConflictingShops(l);
     const originalTiles=l.tiles.slice(),originalLadders=l.ladders.slice();
     encloseShops(l);
     reduceThreats(l,seed,stage);
