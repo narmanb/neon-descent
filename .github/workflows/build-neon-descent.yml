@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature-ledge-grab-v1
+      - feature-polish-controls-generation-v1
     paths:
       - 'src/**'
       - 'index.template.html'
@@ -24,8 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Check ledge patch syntax
-        run: node --check src/ledge.js
+      - name: Check polish patch syntax
+        run: |
+          node --check src/ledge.js
+          node --check src/genpolish.js
+          node --check src/grip.js
+          node --check src/polish.js
       - name: Run system tests
         run: npm test
       - name: Run traversal tests
