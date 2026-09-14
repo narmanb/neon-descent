@@ -6,6 +6,7 @@ on:
       - main
       - feature-ledge-grab-v1
       - feature-polish-controls-generation-v1
+      - feature-debug-climb-traps-v1
     paths:
       - 'src/**'
       - 'index.template.html'
@@ -31,6 +32,9 @@ jobs:
           node --check src/genpolish.js
           node --check src/grip.js
           node --check src/polish.js
+          node --check src/climbpolish.js
+          node --check src/trappolish.js
+          node --check src/debugtools.js
       - name: Run system tests
         run: npm test
       - name: Run traversal tests
