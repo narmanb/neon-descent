@@ -9,7 +9,7 @@
     const p=this.p;
     baseUpdatePlayer.call(this,dt);
     if(!p||p.dead||p.ledge||!p.passives?.has('grip')){if(p)p.gripCling=0;return;}
-    if(p.stun>0){p.gripCling=0;return;}
+    if(p.stun>0||p.gripRegrabLock>0){p.gripCling=0;return;}
 
     const axis=Input.axis(),up=Input.down('up'),down=Input.down('down');
     let preferred=axis?Math.sign(axis):(p.face||1);
