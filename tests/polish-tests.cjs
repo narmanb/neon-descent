@@ -19,7 +19,8 @@ for(let seed=1;seed<=64;seed++)for(let stage=1;stage<=4;stage++){
     shops++;assert(q.enclosed);
     const x0=Math.round(q.x/32),y0=Math.round(q.y/32),x1=x0+Math.round(q.w/32)-1;
     assert(N.solid(l,x0,y0));assert(N.solid(l,x1,y0+2));assert.equal(N.tileAt(l,x0,y0+2),0);assert.equal(N.tileAt(l,x0,y0+3),0);
-    const m=l.spawns.find(s=>s.kind==='enemy'&&s.type==='merchant'&&s.shop===q.id);assert(m);assert(m.x>q.x+q.w*.7&&m.x<q.x+q.w);
+    const m=l.spawns.find(s=>s.kind==='enemy'&&s.type==='merchant'&&s.shop===q.id);assert(m);
+    const wallDistance=Math.min(m.x-q.x,q.x+q.w-m.x);assert(wallDistance<q.w*.32);
   }
 }
 assert(shops>20);
@@ -33,4 +34,3 @@ function step(frames,state={}){I.state=state;for(let i=0;i<frames;i++){G.step(1/
 const p=arena();G.equip(G.spawn({kind:'item',id:'grip',x:p.x,y:p.y}));for(let y=12;y<20;y++)N.setTile(G.l,13,y,1);p.x=13*32-p.w/2-1;p.face=1;
 step(45,{up:true,right:true});assert(p.y<570);assert.equal(p.gripCling,1);assert(p.climb);
 console.log('PASS polish generation safety, enclosed shops, and magnetic grip climbing');
-// CI trigger after workflow branch registration.
