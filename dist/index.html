@@ -729,7 +729,7 @@ window.Game=Game;
     const p=this.p;
     baseUpdatePlayer.call(this,dt);
     if(!p||p.dead||p.ledge||!p.passives?.has('grip')){if(p)p.gripCling=0;return;}
-    if(p.stun>0){p.gripCling=0;return;}
+    if(p.stun>0||p.gripRegrabLock>0){p.gripCling=0;return;}
 
     const axis=Input.axis(),up=Input.down('up'),down=Input.down('down');
     let preferred=axis?Math.sign(axis):(p.face||1);
@@ -1253,31 +1253,46 @@ boot();
     const p=this.p;
     if(!p)return baseUpdatePlayer.call(this,dt);
 
-    p.ladderExitSlow=Math.max(0,(p.ladderExitSlow||0)-dt);
-    const onClimbable=ND.ladder(this.l,p),wasClimbing=!!p.climb;
-    const axis=Input.axis(),jumpPressed=Input.pressed('jump');
-    const activeClimb=onClimbable&&wasClimbing&&!p.ledge;
+    p.climbRegrabLock=Math.max(0,(p.climbRegrabLock||0)-dt);
+    p.gripRegrabLock=Math.max(0,(p.gripRegrabLock||0)-dt);
 
-    // A directional jump from a ladder/cable should carry the same useful horizontal
-    // momentum as a normal running jump instead of inheriting the tiny first climb frame.
-    if(activeClimb&&jumpPressed&&axis){
-      p.vx=Math.sign(axis)*ND.C.speed;
+    const onClimbable=ND.ladder(this.l,p),rawAxis=Input.axis(),jumpPressed=Input.pressed('jump');
+    const wasGrip=!!p.gripCling&&!p.ledge;
+    const wasLadderClimbing=onClimbable&&!!p.climb&&!p.ledge&&!wasGrip;
+    const oldDown=Input.down,oldAxis=Input.axis;
+
+    // Once attached to a ladder or Mag-Cable, left/right alone cannot slide the
+    // player off it. Horizontal movement becomes an explicit jump-off action.
+    if(wasLadderClimbing&&!jumpPressed)Input.axis=()=>0;
+
+    // A short detach grace period prevents a held UP/DOWN input from immediately
+    // re-acquiring the same ladder/cable or Magnetic Grip wall after a jump.
+    if(p.climbRegrabLock>0||p.gripRegrabLock>0){
+      Input.down=function(a){if(a==='up'||a==='down')return false;return oldDown.call(this,a);};
     }
 
-    baseUpdatePlayer.call(this,dt);
+    try{baseUpdatePlayer.call(this,dt);}
+    finally{Input.down=oldDown;Input.axis=oldAxis;}
 
-    if(activeClimb&&jumpPressed&&axis&&!p.ledge){
-      p.vx=Math.sign(axis)*ND.C.speed;
-      if(p.vy>-ND.C.jump*.92)p.vy=-ND.C.jump;
-      p.climb=false;p.ground=false;p.fallStart=p.y;p.ladderExitSlow=0;
-    }else if(activeClimb&&axis&&!jumpPressed){
-      // Side-stepping off a ladder/cable remains allowed, but is intentionally slower.
-      const cap=ND.C.speed*.5;
-      p.vx=ND.clamp(p.vx,-cap,cap);
-      p.ladderExitSlow=.14;
-    }else if(p.ladderExitSlow>0&&!p.ground&&!p.climb&&!jumpPressed){
-      const cap=ND.C.speed*.5;
-      p.vx=ND.clamp(p.vx,-cap,cap);
+    const jumpPower=ND.C.jump*(p.passives?.has('jump')?1.4:1);
+
+    if(wasLadderClimbing&&jumpPressed&&!p.ledge){
+      const baseLaunched=p.vy<-jumpPower*.45;
+      p.vx=rawAxis?Math.sign(rawAxis)*ND.C.speed:0;
+      p.vy=-jumpPower;p.climb=false;p.gripCling=0;p.ground=false;p.platform=null;p.fallStart=p.y;
+      p.climbRegrabLock=.22;
+      if(!baseLaunched){this.sound('jump');this.fx(p.x,p.y,'#c3e3ef',5,50);}
+    }else if(wasLadderClimbing&&!jumpPressed&&ND.ladder(this.l,p)&&!p.ledge){
+      p.vx=0;p.climb=true;
+    }
+
+    if(wasGrip&&jumpPressed&&!p.ledge){
+      const baseLaunched=p.vy<-jumpPower*.45;
+      p.vx=rawAxis?Math.sign(rawAxis)*ND.C.speed:0;
+      p.vy=-jumpPower;p.climb=false;p.gripCling=0;p.ground=false;p.platform=null;p.fallStart=p.y;
+      p.gripRegrabLock=.22;
+      if(rawAxis)p.face=Math.sign(rawAxis);
+      if(!baseLaunched){this.sound('jump');this.fx(p.x,p.y,'#73e0b6',7,55);}
     }
   };
 })();
@@ -1378,6 +1393,49 @@ boot();
   }
 
   addDebugButton();
+})();
+</script><script>'use strict';
+(() => {
+  const VERSION='0.12';
+  window.NEON_VERSION=VERSION;
+
+  const style=document.createElement('style');
+  style.textContent=`
+    .passive-strip{display:flex;align-items:center;gap:3px;min-height:20px}
+    .passive-chip{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #5f88966b;border-radius:4px;background:#0b2635d9;font:700 9px ui-monospace,monospace;box-shadow:inset 0 0 8px #0005;line-height:1}
+    .passive-chip.empty{display:none}
+    @media(max-height:440px){.passive-chip{width:18px;height:18px;font-size:8px}.passive-strip{gap:2px}}
+  `;
+  document.head.appendChild(style);
+
+  const oldTitle=UI.title.bind(UI);
+  UI.title=function(){
+    oldTitle();
+    const v=document.querySelector('.version');
+    if(v)v.textContent=`NEON DESCENT / v${VERSION}`;
+  };
+
+  const oldUpdate=UI.update.bind(UI);
+  let lastPassiveSig='';
+  UI.update=function(){
+    oldUpdate();
+    const p=Game.p,hud=document.getElementById('hud-content');
+    if(!p||!hud)return;
+    const ids=Array.from(p.passives||[]).filter(id=>item[id]?.slot==='passive');
+    const sig=ids.join('|');
+    let strip=document.getElementById('passive-upgrades'),created=false;
+    if(!strip){
+      strip=document.createElement('span');strip.id='passive-upgrades';strip.className='passive-strip';strip.setAttribute('aria-label','Passive upgrades');
+      const health=hud.querySelector('.health');health?.insertAdjacentElement('afterend',strip);if(!health)hud.prepend(strip);created=true;
+    }
+    if(created||sig!==lastPassiveSig){
+      strip.replaceChildren();
+      for(const id of ids){
+        const it=item[id],chip=document.createElement('span');chip.className='passive-chip';chip.textContent=it.glyph;chip.style.color=it.color;chip.style.borderColor=it.color+'88';chip.title=it.name;chip.setAttribute('aria-label',it.name);strip.appendChild(chip);
+      }
+      strip.hidden=!ids.length;lastPassiveSig=sig;
+    }
+  };
 })();
 </script>
 </body></html>
