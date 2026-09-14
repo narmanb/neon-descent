@@ -1,0 +1,12 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const build=fs.readFileSync(path.join(root,'build.py'),'utf8');
+const release=fs.readFileSync(path.join(root,'src/release.js'),'utf8');
+const template=fs.readFileSync(path.join(root,'index.template.html'),'utf8');
+const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
+assert(build.includes("VERSION='0.12'"),'build version must be v0.12');
+assert(build.includes("Neon-Descent-v{VERSION}.html"),'build must emit a versioned standalone filename');
+assert(release.includes("const VERSION='__NEON_VERSION__'"),'release HUD/title must use the build-injected version');
+assert(template.includes('/*RELEASE*/'),'standalone template must load release layer');
+assert.equal(pkg.version,'0.12.0','package version should match v0.12 release');
+console.log('PASS v0.12 versioned artifact and title version source are synchronized');
