@@ -15,14 +15,15 @@
       // The existing approach ladder is immediately left of the shop. Leave a two-tile doorway into it.
       ND.setTile(l,x0,y0+2,0);
       ND.setTile(l,x0,y0+3,0);
-      for(let x=x0;x<=x1;x++)if(!ND.solid(l,x,floorY))ND.setTile(l,x,floorY,1);
+      // Do not refill any floor cells the route-repair pass intentionally carved for a descent shaft.
+      const floorCols=[];for(let x=x0+1;x<x1;x++)if(ND.solid(l,x,floorY))floorCols.push(x);
       q.enclosed=true;q.entry='left';
 
       const stock=l.spawns.filter(s=>s.kind==='item'&&s.shop===q.id);
-      const itemXs=[x0+1.55,x0+3.35,x0+5.05];
-      stock.forEach((s,i)=>{s.x=(itemXs[Math.min(i,itemXs.length-1)])*32;s.y=floorY*32;});
+      const itemCols=floorCols.length>=3?[floorCols[0],floorCols[Math.floor((floorCols.length-1)/2)],floorCols[Math.max(0,floorCols.length-2)]]:floorCols;
+      stock.forEach((s,i)=>{const col=itemCols[Math.min(i,itemCols.length-1)];if(col!==undefined){s.x=(col+.5)*32;s.y=floorY*32;}});
       const merchant=l.spawns.find(s=>s.kind==='enemy'&&s.type==='merchant'&&s.shop===q.id);
-      if(merchant){merchant.x=(x0+6.45)*32;merchant.y=floorY*32;merchant.homeX=merchant.x;merchant.homeY=merchant.y;}
+      if(merchant&&floorCols.length){const col=floorCols[floorCols.length-1];merchant.x=(col+.5)*32;merchant.y=floorY*32;merchant.homeX=merchant.x;merchant.homeY=merchant.y;}
     }
   }
 
