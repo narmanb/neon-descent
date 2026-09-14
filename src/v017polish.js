@@ -59,8 +59,22 @@
     document.getElementById('dbg-resume').onclick=()=>Game.pause();
   }
 
+  // v0.17's intended default is 150%. The pre-migration sets it on untouched
+  // installs; these hooks also make every visible RESTORE DEFAULTS path agree.
+  const settingsApi=window.NeonPolishSettings;
+  if(settingsApi){settingsApi.reset=()=>settingsApi.update({controlMode:'dpad',touchVisible:true,zoom:1.50});}
+  function patchLegacyDefaults(){
+    const b=document.getElementById('opt-defaults');if(!b||b.dataset.v017Default)return;b.dataset.v017Default='1';
+    b.onclick=()=>{
+      settingsApi?.update?.({controlMode:'dpad',touchVisible:true,zoom:1.50});UI.opacity=.62;UI.size=1;UI.applyControls();
+      const control=document.getElementById('opt-control'),touch=document.getElementById('opt-touch'),zoom=document.getElementById('opt-zoom'),zv=document.getElementById('opt-zoom-value'),opacity=document.getElementById('opt-opacity'),size=document.getElementById('opt-size');
+      if(control)control.value='dpad';if(touch)touch.checked=true;if(zoom)zoom.value='1.50';if(zv)zv.textContent='150%';if(opacity)opacity.value=UI.opacity;if(size)size.value=UI.size;
+    };
+  }
+
   UI.pause=function(){pauseComputer();injectDebugNav();};
-  const panel=document.getElementById('panel');if(panel)new MutationObserver(()=>injectDebugNav()).observe(panel,{childList:true,subtree:true});
+  const panel=document.getElementById('panel');if(panel)new MutationObserver(()=>{injectDebugNav();patchLegacyDefaults();}).observe(panel,{childList:true,subtree:true});
+  patchLegacyDefaults();
   window.NeonDebugPage={show:showDebug,inject:injectDebugNav};
 
   // Damaged trap hardware gets a compact condition bar so shots clearly register.
