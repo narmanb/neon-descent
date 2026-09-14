@@ -58,17 +58,55 @@
     l.spawnSafety={radius:safeRadius,trapRadius:trapSafeRadius,ambientEnemies:kept.length,maxAmbient};
   }
 
+  function configureCrushers(l){
+    for(const t of l.traps){
+      if(t.type!=='crusher')continue;
+      const tx=Math.floor(t.x/32),floorRow=Math.floor(t.y/32);
+      let ceilingRow=null;
+      for(let y=floorRow-2;y>=Math.max(1,floorRow-8);y--){if(ND.solid(l,tx,y)){ceilingRow=y;break;}}
+      if(ceilingRow===null){t.type='spikes';continue;}
+      const mountY=(ceilingRow+1)*32,downY=t.y-18;
+      if(downY-mountY<46){t.type='spikes';continue;}
+      t.mountY=mountY;t.floorY=t.y;t.restY=mountY+4;t.downY=downY;
+    }
+  }
+
+  const pickupKind=s=>s.shop===undefined&&['coin','item','key','crate','scrap'].includes(s.kind);
+  function hazardOverlap(s,t){
+    if(t.dead)return false;
+    if(t.type==='laser')return Math.abs(s.y-(t.y-12))<30&&Math.abs(s.x-t.x)<82;
+    if(t.type==='crusher'&&t.mountY!==undefined)return Math.abs(s.x-t.x)<30&&s.y>t.mountY-8&&s.y<t.floorY+8;
+    return Math.hypot(s.x-t.x,s.y-t.y)<32;
+  }
+  function separatePickupsFromTraps(l){
+    const offsets=[32,-32,64,-64,96,-96,128,-128,160,-160];
+    for(const s of l.spawns){
+      if(!pickupKind(s)||!l.traps.some(t=>hazardOverlap(s,t)))continue;
+      const oldX=s.x;
+      for(const dx of offsets){
+        const x=oldX+dx,tx=Math.floor(x/32),floorY=Math.floor(s.y/32);
+        if(tx<1||tx>=ND.C.cols-1)continue;
+        if(!ND.solid(l,tx,floorY)||ND.blocked(l,x,s.y-.01,18,18))continue;
+        if(l.traps.some(t=>hazardOverlap({x,y:s.y},t)))continue;
+        s.x=x;break;
+      }
+    }
+  }
+  function polishTraps(l){configureCrushers(l);separatePickupsFromTraps(l);}
+
   ND.generate=function(seed,stage=1){
     const l=baseGenerate(seed,stage);
     const originalTiles=l.tiles.slice();
     encloseShops(l);
     reduceThreats(l,seed,stage);
+    polishTraps(l);
     const check=ND.validate(l);
     if(check.ok)l.validation=check;
     else{
       // Shop dressing must never compromise the certified natural route.
       l.tiles=originalTiles;
       for(const q of l.shops)q.enclosed=false;
+      polishTraps(l);
       l.validation=ND.validate(l);
     }
     return l;
