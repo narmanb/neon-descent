@@ -9,13 +9,16 @@
     p.gripRegrabLock=Math.max(0,(p.gripRegrabLock||0)-dt);
 
     const onClimbable=ND.ladder(this.l,p),rawAxis=Input.axis(),jumpPressed=Input.pressed('jump');
+    const upHeld=Input.down('up'),downHeld=Input.down('down');
     const wasGrip=!!p.gripCling&&!p.ledge;
     const wasLadderClimbing=onClimbable&&!!p.climb&&!p.ledge&&!wasGrip;
+    const groundedWalkOff=wasLadderClimbing&&p.ground&&Math.abs(rawAxis)>.15&&!upHeld&&!downHeld&&!jumpPressed;
     const oldDown=Input.down,oldAxis=Input.axis;
 
     // Once attached to a ladder or Mag-Cable, left/right alone cannot slide the
-    // player off it. Horizontal movement becomes an explicit jump-off action.
-    if(wasLadderClimbing&&!jumpPressed)Input.axis=()=>0;
+    // player off it in midair. At the bottom, when standing on solid ground,
+    // left/right immediately becomes ordinary walking again.
+    if(wasLadderClimbing&&!jumpPressed&&!groundedWalkOff)Input.axis=()=>0;
 
     // A short detach grace period prevents a held UP/DOWN input from immediately
     // re-acquiring the same ladder/cable or Magnetic Grip wall after a jump.
@@ -28,7 +31,9 @@
 
     const jumpPower=ND.C.jump*(p.passives?.has('jump')?1.4:1);
 
-    if(wasLadderClimbing&&jumpPressed&&!p.ledge){
+    if(groundedWalkOff){
+      p.climb=false;p.gripCling=0;p.climbRegrabLock=.1;
+    }else if(wasLadderClimbing&&jumpPressed&&!p.ledge){
       const baseLaunched=p.vy<-jumpPower*.45;
       p.vx=rawAxis?Math.sign(rawAxis)*ND.C.speed:0;
       p.vy=-jumpPower;p.climb=false;p.gripCling=0;p.ground=false;p.platform=null;p.fallStart=p.y;
