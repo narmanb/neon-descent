@@ -12,10 +12,10 @@ assert(html.includes('Player clearance ghost'),'player clearance overlay should 
 assert(html.includes("const LIBKEY='neon-descent-chunks-v1'"),'browser library should use a stable versioned key');
 assert(html.includes('id="fullscreen"')&&html.includes('requestFullscreen'),'mobile editor should expose a real fullscreen control');
 assert(html.includes('const PAN_THRESHOLD=8'),'touch editor should distinguish taps from drag-to-pan gestures');
-assert(html.includes("workspace.addEventListener('pointerdown'")&&html.includes("workspace.addEventListener('pointermove'"),'whole workspace should own pan gestures');
+assert(html.includes("ui.workspace.addEventListener('pointerdown'")&&html.includes("ui.workspace.addEventListener('pointermove'"),'whole workspace should own pan gestures');
 assert(html.includes("if(!cancel&&!s.moved)"),'a gesture should place only when it remained a tap');
 assert(html.includes('panX=panState.originX+dx')&&html.includes('panY=panState.originY+dy'),'dragging should pan in both axes');
-assert(html.includes('if(window.innerWidth<1050)inspector.classList.add(\'hidden\')'),'inspector should start collapsed on phone-sized layouts');
+assert(html.includes("if(window.innerWidth<1050)ui.inspector.classList.add('hidden')"),'inspector should start collapsed on phone-sized layouts');
 const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 assert(scripts.length>=1,'chunk maker should contain executable JavaScript');
 for(const [i,source] of scripts.entries())assert.doesNotThrow(()=>new Function(source),`script ${i+1} should parse`);
