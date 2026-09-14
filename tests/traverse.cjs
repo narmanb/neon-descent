@@ -1,6 +1,7 @@
 const fs=require('fs'),vm=require('vm'),path=require('path');const root=path.resolve(__dirname,'..');
 const I={state:{},edges:{},reset(){this.state={};this.edges={}},down(a){return !!this.state[a]},axis(){return (+!!this.state.right)-(+!!this.state.left)},pressed(a){return !!this.edges[a]}};
-const ctx={window:{},console,Math,Set,Uint8Array,Input:I,UI:{close(){},end(){}}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(root+'/src/core.js','utf8')+'\n'+fs.readFileSync(root+'/src/genpolish.js','utf8')+'\n'+fs.readFileSync(root+'/src/game.js','utf8'),ctx);const G=ctx.window.Game,N=ctx.window.ND;
+const ctx={window:{},console,Math,Set,Map,Uint8Array,Object,Array,String,Number,Input:I,UI:{close(){},end(){},message(){}}};vm.createContext(ctx);
+for(const file of ['core.js','genpolish.js','v017gen.js','v018geometry.js','game.js'])vm.runInContext(fs.readFileSync(root+'/src/'+file,'utf8'),ctx);const G=ctx.window.Game,N=ctx.window.ND;
 const outcomes=[];
 for(let seed=1;seed<=64;seed++){
  G.start(seed);G.entities=[];G.l.traps=[];let row=0,phase='walk',jumpHold=0,frames=0,failed='';
