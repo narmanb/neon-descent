@@ -15,10 +15,16 @@ for(let seed=1;seed<=64;seed++)for(let stage=1;stage<=4;stage++){
   assert(ambient.length<=l.spawnSafety.maxAmbient);
   assert(ambient.every(s=>Math.hypot(s.x-l.entrance.x,s.y-l.entrance.y)>=l.spawnSafety.radius));
   assert(l.traps.every(t=>Math.hypot(t.x-l.entrance.x,t.y-l.entrance.y)>=l.spawnSafety.trapRadius));
+  const protectedCells=new Set();for(const r of l.route)if(r.row<3)for(let y=r.floor-3;y<r.floor+8;y++){protectedCells.add(y*N.C.cols+r.shaft);protectedCells.add(y*N.C.cols+r.shaft+1);}
   for(const q of l.shops){
     shops++;assert(q.enclosed);
-    const x0=Math.round(q.x/32),y0=Math.round(q.y/32),x1=x0+Math.round(q.w/32)-1;
-    assert(N.solid(l,x0,y0));assert(N.solid(l,x1,y0+2));assert.equal(N.tileAt(l,x0,y0+2),0);assert.equal(N.tileAt(l,x0,y0+3),0);
+    const x0=Math.round(q.x/32),y0=Math.round(q.y/32),x1=x0+Math.round(q.w/32)-1,floorY=y0+Math.round(q.h/32);
+    for(let x=x0;x<=x1;x++)if(!protectedCells.has(y0*N.C.cols+x))assert(N.solid(l,x,y0));
+    for(let y=y0;y<floorY;y++){
+      if(y!==y0+2&&y!==y0+3&&!protectedCells.has(y*N.C.cols+x0))assert(N.solid(l,x0,y));
+      if(!protectedCells.has(y*N.C.cols+x1))assert(N.solid(l,x1,y));
+    }
+    assert.equal(N.tileAt(l,x0,y0+2),0);assert.equal(N.tileAt(l,x0,y0+3),0);
     const m=l.spawns.find(s=>s.kind==='enemy'&&s.type==='merchant'&&s.shop===q.id);assert(m);
     const wallDistance=Math.min(m.x-q.x,q.x+q.w-m.x);assert(wallDistance<q.w*.32);
   }
