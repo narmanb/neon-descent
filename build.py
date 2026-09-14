@@ -2,7 +2,7 @@ from pathlib import Path
 import shutil
 root=Path(__file__).parent
 html=(root/'index.template.html').read_text()
-for name in ['style','core','game','render','ui','ledge']:
+for name in ['style','core','genpolish','game','grip','render','ui','ledge','polish']:
     html=html.replace('/*'+name.upper()+'*/',(root/'src'/f'{name}.{ "css" if name=="style" else "js"}').read_text())
 (root/'Neon-Descent.html').write_text(html)
 (root/'index.html').write_text(html)
