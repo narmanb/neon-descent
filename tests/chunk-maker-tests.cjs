@@ -1,0 +1,17 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'tools/chunk-maker.html'),'utf8');
+assert(html.includes('NEON DESCENT <span>CHUNK MAKER</span>'),'chunk maker title should exist');
+assert(html.includes("schema:'neon-descent-chunk-v1'"),'chunk schema v1 should be emitted');
+for(const tile of ['wall','halfTop','halfBottom','steel','glass','crumble','ladder'])assert(html.includes(`${tile}:`),`tile palette should include ${tile}`);
+for(const obj of ['enemy','turret','mine','loot','item','shopkeeper','keycard','switch','decor','spawn'])assert(html.includes(`${obj}:`),`object palette should include ${obj}`);
+for(const port of ['hall','shaft','secret','shop'])assert(html.includes(`value="${port}"`),`port palette should include ${port}`);
+for(const feature of ['pushUndo','function undo','function redo','validateChunk','exportJson','importFile','saveLocal','loadLocal','maskCells','reachablePorts'])assert(html.includes(feature),`chunk maker should retain ${feature}`);
+assert(html.includes('Port clearance masks'),'connector clearance overlay should be exposed');
+assert(html.includes('Player clearance ghost'),'player clearance overlay should be exposed');
+assert(html.includes("const LIBKEY='neon-descent-chunks-v1'"),'browser library should use a stable versioned key');
+const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
+assert(scripts.length>=1,'chunk maker should contain executable JavaScript');
+for(const [i,source] of scripts.entries())assert.doesNotThrow(()=>new Function(source),`script ${i+1} should parse`);
+assert(!/<script[^>]+src=/i.test(html),'chunk maker should remain standalone with no external script dependency');
+console.log('PASS standalone Chunk Maker v1 palette, ports, overlays, history, validation, library, and JSON tooling');
