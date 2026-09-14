@@ -1,15 +1,16 @@
 'use strict';
 (() => {
-  const defaults={controlMode:'dpad',touchVisible:true,zoom:1.12};
+  const defaults={controlMode:'dpad',touchVisible:true,zoom:1.18};
   let settings={...defaults};
   try{settings={...settings,...JSON.parse(localStorage.getItem('neon-polish-settings')||'{}')};}catch{}
-  settings.zoom=Math.max(.95,Math.min(1.28,Number(settings.zoom)||defaults.zoom));
+  settings.zoom=Math.max(.80,Math.min(1.50,Number(settings.zoom)||defaults.zoom));
   if(!['dpad','fixed','floating'].includes(settings.controlMode))settings.controlMode='dpad';
   settings.touchVisible=settings.touchVisible!==false;
 
   const save=()=>{try{localStorage.setItem('neon-polish-settings',JSON.stringify(settings));}catch{}};
 
-  // Slightly closer default camera, with an options slider for personal preference.
+  // Camera zoom remains live-resizable and now has enough range for both a
+  // broad traversal view and a close character-focused view.
   Render.zoom=settings.zoom;
   Render.resize=function(){
     const d=Math.min(window.devicePixelRatio||1,2),viewH=440/(this.zoom||1);
@@ -71,6 +72,17 @@
     Render.zoom=settings.zoom;Render.resize();save();
   }
 
+  window.NeonPolishSettings={
+    get(){return {...settings};},
+    update(patch={}){
+      if(Object.prototype.hasOwnProperty.call(patch,'controlMode')&&['dpad','fixed','floating'].includes(patch.controlMode))settings.controlMode=patch.controlMode;
+      if(Object.prototype.hasOwnProperty.call(patch,'touchVisible'))settings.touchVisible=patch.touchVisible!==false;
+      if(Object.prototype.hasOwnProperty.call(patch,'zoom'))settings.zoom=Math.max(.80,Math.min(1.50,Number(patch.zoom)||defaults.zoom));
+      apply();return {...settings};
+    },
+    reset(){settings={...defaults};apply();return {...settings};}
+  };
+
   function decorateTitle(){
     const row=document.querySelector('.title-card .start-row');if(row&&!document.getElementById('title-options')){const b=document.createElement('button');b.className='secondary';b.id='title-options';b.textContent='OPTIONS';b.onclick=()=>showOptions('title');row.appendChild(b);}
   }
@@ -86,7 +98,7 @@
     UI.show(`<div class="menu-card"><div class="eyebrow">SYSTEM OPTIONS</div><h2>Controls & view</h2><div class="options-grid">
       <label>Movement control<select id="opt-control"><option value="dpad">D-pad</option><option value="fixed">Fixed analog stick</option><option value="floating">Floating analog stick</option></select></label>
       <label class="check"><input id="opt-touch" type="checkbox"> Show on-screen touch controls</label>
-      <label>Camera zoom <input id="opt-zoom" type="range" min=".95" max="1.28" step=".01"><span id="opt-zoom-value"></span></label>
+      <label>Camera zoom <input id="opt-zoom" type="range" min=".80" max="1.50" step=".01"><span id="opt-zoom-value"></span></label>
       <label>Touch opacity <input id="opt-opacity" type="range" min=".25" max="1" step=".05"></label>
       <label>Touch size <input id="opt-size" type="range" min=".8" max="1.2" step=".05"></label>
     </div><div class="pause-row"><button class="primary" id="opt-back">BACK</button><button class="secondary" id="opt-defaults">DEFAULTS</button></div></div>`);
@@ -107,7 +119,8 @@
   const tools=document.querySelector('.tools');if(tools&&!document.getElementById('options')){const b=document.createElement('button');b.id='options';b.setAttribute('aria-label','Options');b.textContent='⚙';b.onclick=()=>showOptions(Game.mode==='play'?'play':Game.mode==='title'?'title':'pause');tools.insertBefore(b,document.getElementById('pause'));}
   decorateTitle();decoratePause();apply();
 
-  // Make Magnetic Grip activation unmistakable without replacing the base character art.
+  // Legacy Magnetic Grip indicator remains as a fallback underneath later visual
+  // layers. v0.16 replaces the entire grip pose before this overlay is reached.
   const baseHumanoid=Render.humanoid;
   Render.humanoid=function(e,player=true){
     baseHumanoid.call(this,e,player);if(!player||!e.gripCling||e.ledge)return;
