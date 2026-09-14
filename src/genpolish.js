@@ -79,14 +79,14 @@
     return Math.hypot(s.x-t.x,s.y-t.y)<32;
   }
   function separatePickupsFromTraps(l){
-    const offsets=[32,-32,64,-64,96,-96,128,-128,160,-160];
+    const offsets=[32,-32,64,-64,96,-96,128,-128,160,-160,192,-192];
     for(const s of l.spawns){
       if(!pickupKind(s)||!l.traps.some(t=>hazardOverlap(s,t)))continue;
       const oldX=s.x;
       for(const dx of offsets){
-        const x=oldX+dx,tx=Math.floor(x/32),floorY=Math.floor(s.y/32);
+        const x=oldX+dx,tx=Math.floor(x/32);
         if(tx<1||tx>=ND.C.cols-1)continue;
-        if(!ND.solid(l,tx,floorY)||ND.blocked(l,x,s.y-.01,18,18))continue;
+        if(ND.blocked(l,x,s.y-.01,18,18))continue;
         if(l.traps.some(t=>hazardOverlap({x,y:s.y},t)))continue;
         s.x=x;break;
       }
