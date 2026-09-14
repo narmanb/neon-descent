@@ -16,7 +16,8 @@ for(let seed=1;seed<=128;seed++)for(let stage=1;stage<=4;stage++){
     }
     if(t.type==='laser')for(const s of l.spawns){
       if(s.shop!==undefined||!['coin','item','key','crate','scrap'].includes(s.kind))continue;
-      assert(!(Math.abs(s.y-(t.y-12))<30&&Math.abs(s.x-t.x)<82),'pickup must not overlap laser emitter/beam');
+      const overlap=Math.abs(s.y-(t.y-12))<30&&Math.abs(s.x-t.x)<82;
+      assert(!overlap,`laser overlap seed=${seed} stage=${stage} trap=(${t.x},${t.y}) pickup=${s.kind}:${s.id||s.value||''}@(${s.x},${s.y})`);
     }
   }
 }
