@@ -33,3 +33,4 @@ function step(frames,state={}){I.state=state;for(let i=0;i<frames;i++){G.step(1/
 const p=arena();G.equip(G.spawn({kind:'item',id:'grip',x:p.x,y:p.y}));for(let y=12;y<20;y++)N.setTile(G.l,13,y,1);p.x=13*32-p.w/2-1;p.face=1;
 step(45,{up:true,right:true});assert(p.y<570);assert.equal(p.gripCling,1);assert(p.climb);
 console.log('PASS polish generation safety, enclosed shops, and magnetic grip climbing');
+// CI trigger after workflow branch registration.
