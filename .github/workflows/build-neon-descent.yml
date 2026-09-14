@@ -13,6 +13,7 @@ on:
       - feature-v015-mag-cable
       - feature-v016-grip-pause-camera
       - feature-v017-combat-camera-debug
+      - feature-v018-half-blocks-fullscreen
     paths:
       - 'src/**'
       - 'index.template.html'
@@ -37,6 +38,7 @@ jobs:
           node --check src/ledge.js
           node --check src/genpolish.js
           node --check src/v017gen.js
+          node --check src/v018geometry.js
           node --check src/grip.js
           node --check src/v014pre.js
           node --check src/v017pre.js
@@ -51,6 +53,7 @@ jobs:
           node --check src/v016polish.js
           node --check src/v017gameplay.js
           node --check src/v017polish.js
+          node --check src/v018polish.js
           node --check src/release.js
       - name: Run system tests
         run: npm test
@@ -58,10 +61,10 @@ jobs:
         run: node tests/traverse.cjs
       - name: Build standalone and Sites bundles
         run: python3 build.py
-      - name: Verify v0.17 artifact
+      - name: Verify v0.18 artifact
         run: |
-          test -f Neon-Descent-v0.17.html
-          grep -q "const VERSION='0.17'" Neon-Descent-v0.17.html
+          test -f Neon-Descent-v0.18.html
+          grep -q "const VERSION='0.18'" Neon-Descent-v0.18.html
       - name: Commit generated playable files
         shell: bash
         run: |
@@ -69,7 +72,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Neon-Descent*.html index.html dist/
           if ! git diff --cached --quiet; then
-            git commit -m "Build playable Neon Descent v0.17 artifacts"
+            git commit -m "Build playable Neon Descent v0.18 artifacts"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 # Feature-branch validation before main promotion.
