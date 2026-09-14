@@ -51,8 +51,8 @@ p=arena();turret={type:'turret',x:190,y:20*32,phase:0,cool:9,dead:false};G.l.tra
 G.fire(p,'shotgun',1,'player');for(let i=0;i<20;i++)G.updateShots(1/60);
 assert(turret.dead||turret.hp<turret.maxHp,'Pulse Shotgun pellets must register on a turret');
 
-// Mines are also weapon-reactive instead of swallowing bullets.
-p=arena();let mine={type:'mine',x:160,y:20*32,phase:0,cool:0,dead:false};G.l.traps=[mine];G.fire(p,'pulse',1,'player');for(let i=0;i<12;i++)G.updateShots(1/60);
+// Mines are also weapon-reactive instead of swallowing normal horizontal fire.
+p=arena();let mine={type:'mine',x:160,y:20*32,w:28,h:16,phase:0,cool:0,dead:false};G.l.traps=[mine];G.fire(p,'pulse',1,'player');for(let i=0;i<12;i++)G.updateShots(1/60);
 assert(mine.armed!==undefined&&mine.armed<=.08,'shooting a mine should arm/detonate it');
 
 // Q-9 retaliates against the real non-player attacker without blaming the player.
@@ -63,9 +63,11 @@ merchant.stun=0;merchant.x=180;turret.dead=true;G.updateEnemy(merchant,1/60);ass
 // Blade contact uses body edges, fixing misses against low-profile enemies near its tip.
 p=arena();p.hand='blade';p.cool=0;p.stun=0;let slug=G.spawn({kind:'enemy',type:'slug',x:176,y:20*32});const hp=slug.hp;G.attack();assert(slug.hp<hp,'Mono-Blade should hit a low-profile enemy whose body edge is within reach');
 
-const polish=read('v017polish.js'),gameplay=read('v017gameplay.js');
+const polish=read('v017polish.js'),gameplay=read('v017gameplay.js'),gen=read('v017gen.js');
 assert(polish.includes("nd-debug-tab")&&polish.includes('GIVE GRIP GLOVES')&&polish.includes('+1000 CREDITS'),'CRT pause computer must restore the temporary DEBUG tools');
 assert(polish.includes('MutationObserver'),'DEBUG category must survive v0.16 page re-renders');
+assert(polish.includes('zoom:1.50'),'visible restore-default paths must use the new 150% camera default');
 assert(gameplay.includes('lineClear')&&gameplay.includes('retaliate')&&gameplay.includes('damageTrap'),'combat polish must retain LOS, retaliation, and destructible trap logic');
+assert(gen.includes("t.type==='mine'")&&gen.includes('t.h=Math.max'),'generated mines must receive the forgiving low-profile hitbox');
 
 console.log('PASS v0.17 camera parity/default, debug page, turret LOS/destruction, merchant retaliation, melee reach, and choke repair');
