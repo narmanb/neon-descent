@@ -46,7 +46,7 @@ jobs:
       - name: Verify v0.12 artifact
         run: |
           test -f Neon-Descent-v0.12.html
-          grep -q 'NEON DESCENT / v0.12' Neon-Descent-v0.12.html
+          grep -q "const VERSION='0.12'" Neon-Descent-v0.12.html
       - name: Commit generated playable files
         shell: bash
         run: |
