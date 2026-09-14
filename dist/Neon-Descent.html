@@ -282,17 +282,58 @@ if(typeof module!=='undefined')module.exports=ND;
     l.spawnSafety={radius:safeRadius,trapRadius:trapSafeRadius,ambientEnemies:kept.length,maxAmbient};
   }
 
+  function configureCrushers(l){
+    for(const t of l.traps){
+      if(t.type!=='crusher')continue;
+      const tx=Math.floor(t.x/32),floorRow=Math.floor(t.y/32);
+      let ceilingRow=null;
+      for(let y=floorRow-2;y>=Math.max(1,floorRow-8);y--){if(ND.solid(l,tx,y)){ceilingRow=y;break;}}
+      if(ceilingRow===null){t.type='spikes';continue;}
+      const mountY=(ceilingRow+1)*32,downY=t.y-18;
+      if(downY-mountY<46){t.type='spikes';continue;}
+      t.mountY=mountY;t.floorY=t.y;t.restY=mountY+4;t.downY=downY;
+    }
+  }
+
+  const pickupKind=s=>s.shop===undefined&&['coin','item','key','crate','scrap'].includes(s.kind);
+  function hazardOverlap(s,t){
+    if(t.dead)return false;
+    if(t.type==='laser')return Math.abs(s.y-(t.y-12))<30&&Math.abs(s.x-t.x)<82;
+    if(t.type==='crusher'&&t.mountY!==undefined)return Math.abs(s.x-t.x)<30&&s.y>t.mountY-8&&s.y<t.floorY+8;
+    return Math.hypot(s.x-t.x,s.y-t.y)<32;
+  }
+  function separatePickupsFromTraps(l){
+    const offsets=[32,-32,64,-64,96,-96,128,-128,160,-160,192,-192];
+    for(const s of l.spawns){
+      if(!pickupKind(s)||!l.traps.some(t=>hazardOverlap(s,t)))continue;
+      const oldX=s.x;
+      for(const dx of offsets){
+        const x=oldX+dx,tx=Math.floor(x/32);
+        if(tx<1||tx>=ND.C.cols-1)continue;
+        if(ND.blocked(l,x,s.y-.01,18,18))continue;
+        if(l.traps.some(t=>hazardOverlap({x,y:s.y},t)))continue;
+        s.x=x;break;
+      }
+    }
+  }
+  function removeConflictingLasers(l){
+    l.traps=l.traps.filter(t=>t.type!=='laser'||!l.spawns.some(s=>pickupKind(s)&&hazardOverlap(s,t)));
+  }
+  function polishTraps(l){configureCrushers(l);separatePickupsFromTraps(l);removeConflictingLasers(l);}
+
   ND.generate=function(seed,stage=1){
     const l=baseGenerate(seed,stage);
     const originalTiles=l.tiles.slice();
     encloseShops(l);
     reduceThreats(l,seed,stage);
+    polishTraps(l);
     const check=ND.validate(l);
     if(check.ok)l.validation=check;
     else{
       // Shop dressing must never compromise the certified natural route.
       l.tiles=originalTiles;
       for(const q of l.shops)q.enclosed=false;
+      polishTraps(l);
       l.validation=ND.validate(l);
     }
     return l;
@@ -1204,6 +1245,139 @@ boot();
     this.line(7,-27,14,-30,'#73e0b6',3);this.line(7,-17,14,-20,'#73e0b6',3);this.circle(14,-30,3,'#b9fff0');this.circle(14,-20,3,'#b9fff0');
     c.globalAlpha=pulse;this.line(16,-34,20,-38,'#8ff7ff',1);this.line(17,-25,22,-26,'#8ff7ff',1);this.line(16,-15,20,-11,'#8ff7ff',1);c.restore();
   };
+})();
+</script><script>'use strict';
+(() => {
+  const baseUpdatePlayer=Game.updatePlayer;
+  Game.updatePlayer=function(dt){
+    const p=this.p;
+    if(!p)return baseUpdatePlayer.call(this,dt);
+
+    p.ladderExitSlow=Math.max(0,(p.ladderExitSlow||0)-dt);
+    const onClimbable=ND.ladder(this.l,p),wasClimbing=!!p.climb;
+    const axis=Input.axis(),jumpPressed=Input.pressed('jump');
+    const activeClimb=onClimbable&&wasClimbing&&!p.ledge;
+
+    // A directional jump from a ladder/cable should carry the same useful horizontal
+    // momentum as a normal running jump instead of inheriting the tiny first climb frame.
+    if(activeClimb&&jumpPressed&&axis){
+      p.vx=Math.sign(axis)*ND.C.speed;
+    }
+
+    baseUpdatePlayer.call(this,dt);
+
+    if(activeClimb&&jumpPressed&&axis&&!p.ledge){
+      p.vx=Math.sign(axis)*ND.C.speed;
+      if(p.vy>-ND.C.jump*.92)p.vy=-ND.C.jump;
+      p.climb=false;p.ground=false;p.fallStart=p.y;p.ladderExitSlow=0;
+    }else if(activeClimb&&axis&&!jumpPressed){
+      // Side-stepping off a ladder/cable remains allowed, but is intentionally slower.
+      const cap=ND.C.speed*.5;
+      p.vx=ND.clamp(p.vx,-cap,cap);
+      p.ladderExitSlow=.14;
+    }else if(p.ladderExitSlow>0&&!p.ground&&!p.climb&&!jumpPressed){
+      const cap=ND.C.speed*.5;
+      p.vx=ND.clamp(p.vx,-cap,cap);
+    }
+  };
+})();
+</script><script>'use strict';
+(() => {
+  const baseUpdateTraps=Game.updateTraps;
+  Game.updateTraps=function(dt){
+    const all=this.l?.traps||[],crushers=all.filter(t=>t.type==='crusher'&&t.mountY!==undefined);
+    if(!crushers.length)return baseUpdateTraps.call(this,dt);
+
+    const ordinary=all.filter(t=>!crushers.includes(t));
+    this.l.traps=ordinary;
+    try{baseUpdateTraps.call(this,dt);}finally{this.l.traps=all;}
+
+    const targets=[this.p,...this.entities.filter(e=>e.kind==='enemy'||e.kind==='crate')];
+    for(const t of crushers){
+      if(t.dead)continue;
+      t.cool=Math.max(0,(t.cool||0)-dt);t.active=true;
+      const factor=Math.pow(Math.max(0,Math.sin((this.time+t.phase)*1.6)),5);
+      t.headY=t.restY+(t.downY-t.restY)*factor;
+      for(const e of targets){
+        if(e.dead||e.kind==='crate')continue;
+        const hit=Math.abs(e.x-t.x)<23&&e.y-e.h<t.headY+20&&e.y>t.headY;
+        if(hit&&t.cool<=0){this.damage(e,4,t.x,t.headY+18);t.cool=.5;}
+      }
+    }
+  };
+
+  if(typeof Render!=='undefined'&&Render.trap){
+    const baseTrap=Render.trap;
+    Render.trap=function(t){
+      if(t.type!=='crusher'||t.mountY===undefined)return baseTrap.call(this,t);
+      if(t.dead)return;
+      const x=t.x,hy=t.headY??t.restY,m=t.mountY;
+      this.rect(x-20,m-4,40,6,'#405361');
+      this.rect(x-15,m-2,30,4,'#d8b776');
+      this.line(x-8,m+2,x-8,hy,'#647785',5);
+      this.line(x+8,m+2,x+8,hy,'#647785',5);
+      this.rect(x-22,hy,44,18,'#738391');
+      this.rect(x-22,hy+12,44,6,'#d8b776');
+      for(let i=0;i<4;i++)this.line(x-20+i*12,hy+18,x-14+i*12,hy+12,'#374650',3);
+    };
+  }
+})();
+</script><script>'use strict';
+(() => {
+  const style=document.createElement('style');
+  style.textContent=`
+    .debug-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin:15px 0}
+    .debug-grid button,.debug-grid select{min-height:38px;background:#071e2b;color:#d7ecec;border:1px solid #365c6e;border-radius:4px;padding:7px 9px}
+    .debug-grid select{grid-column:1/-1;width:100%}
+    .debug-note{font:10px ui-monospace,monospace;color:#8faab5;line-height:1.45;margin-top:10px}
+    @media(max-width:620px){.debug-grid{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(style);
+
+  function addDebugButton(){
+    const row=document.querySelector('.menu-card .pause-row');
+    if(!row||document.getElementById('debug-menu'))return;
+    const b=document.createElement('button');b.className='secondary';b.id='debug-menu';b.textContent='DEBUG';b.onclick=showDebug;row.appendChild(b);
+  }
+
+  const basePause=UI.pause.bind(UI);
+  UI.pause=function(){basePause();addDebugButton();};
+
+  function spawnItem(id){
+    const p=Game.p;if(!p||!item[id])return;
+    let x=p.x+p.face*42;
+    if(ND.blocked(Game.l,x,p.y,p.w,p.h))x=p.x-p.face*42;
+    Game.spawn({kind:'item',id,x,y:p.y-8,vy:-70,pickDelay:0});
+    Game.message('DEBUG / spawned '+item[id].name,2.2);
+  }
+  function giveItem(id){
+    if(!Game.p||!item[id])return;
+    Game.equip({kind:'item',id,dead:false});
+    Game.message('DEBUG / equipped '+item[id].name,2.2);
+  }
+  function status(t){const e=document.getElementById('debug-status');if(e)e.textContent=t;}
+
+  function showDebug(){
+    const options=ITEMS.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+    UI.show(`<div class="menu-card"><div class="eyebrow">DEBUG / CHEATS</div><h2>Field-test tools</h2><div class="debug-grid">
+      <button class="primary" id="dbg-grip">GIVE GRIP GLOVES</button><button class="secondary" id="dbg-heal">FULL HEAL</button>
+      <select id="dbg-item" aria-label="Debug item">${options}</select>
+      <button class="secondary" id="dbg-spawn">SPAWN SELECTED</button><button class="secondary" id="dbg-give">GIVE / EQUIP SELECTED</button>
+      <button class="secondary" id="dbg-bombs">+4 CHARGES</button><button class="secondary" id="dbg-cables">+4 CABLES</button>
+      <button class="secondary" id="dbg-money">+1000 CREDITS</button><button class="secondary" id="dbg-back">BACK</button>
+    </div><div class="debug-note" id="debug-status">Run-only testing tools. They do not change procedural generation or future runs.</div></div>`);
+    const sel=document.getElementById('dbg-item');sel.value='grip';
+    document.getElementById('dbg-grip').onclick=()=>{giveItem('grip');status('Magnetic Grip Gloves equipped. Resume and hold UP against a wall.');};
+    document.getElementById('dbg-heal').onclick=()=>{Game.p.hp=Game.p.maxHp;status('Health restored to '+Game.p.maxHp+'.');};
+    document.getElementById('dbg-spawn').onclick=()=>{spawnItem(sel.value);status(item[sel.value].name+' spawned beside the player.');};
+    document.getElementById('dbg-give').onclick=()=>{giveItem(sel.value);status(item[sel.value].name+' granted directly.');};
+    document.getElementById('dbg-bombs').onclick=()=>{Game.p.bombs+=4;status('+4 plasma charges.');};
+    document.getElementById('dbg-cables').onclick=()=>{Game.p.cables+=4;status('+4 mag-cables.');};
+    document.getElementById('dbg-money').onclick=()=>{Game.p.money+=1000;status('+1000 credits.');};
+    document.getElementById('dbg-back').onclick=()=>UI.pause();
+  }
+
+  addDebugButton();
 })();
 </script>
 </body></html>
