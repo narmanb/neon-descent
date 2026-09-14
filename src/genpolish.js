@@ -4,13 +4,20 @@
   const specialMimic=(l,s)=>s.type==='mimic'&&l.secrets.some(q=>Math.hypot(q.x-s.x,q.y-s.y)<70);
 
   function encloseShops(l){
+    const protectedCells=new Set();
+    for(const s of l.route)if(s.row<3)for(let y=s.floor-3;y<s.floor+8;y++){
+      protectedCells.add(y*ND.C.cols+s.shaft);protectedCells.add(y*ND.C.cols+s.shaft+1);
+    }
+    const protectedCell=(x,y)=>protectedCells.has(y*ND.C.cols+x);
+    const wall=(x,y)=>{if(!protectedCell(x,y))ND.setTile(l,x,y,1);};
+
     for(const q of l.shops){
       const x0=Math.round(q.x/32),y0=Math.round(q.y/32),tilesWide=Math.round(q.w/32),tilesHigh=Math.round(q.h/32);
       const x1=x0+tilesWide-1,floorY=y0+tilesHigh;
-      for(let x=x0;x<=x1;x++)ND.setTile(l,x,y0,1);
+      for(let x=x0;x<=x1;x++)wall(x,y0);
       for(let y=y0;y<floorY;y++){
-        ND.setTile(l,x0,y,1);
-        ND.setTile(l,x1,y,1);
+        wall(x0,y);
+        wall(x1,y);
       }
       // The existing approach ladder is immediately left of the shop. Leave a two-tile doorway into it.
       ND.setTile(l,x0,y0+2,0);
