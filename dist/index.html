@@ -266,7 +266,7 @@ if(typeof module!=='undefined')module.exports=ND;
 
   function reduceThreats(l,seed,stage){
     const random=ND.rng((seed^Math.imul(stage,0x9e3779b1)^0x4e454f4e)>>>0);
-    const safeRadius=340,trapSafeRadius=260;
+    const safeRadius=400,trapSafeRadius=300;
     const ambient=[],other=[];
     for(const s of l.spawns){
       const isAmbient=s.kind==='enemy'&&s.type!=='merchant'&&!specialMimic(l,s);
