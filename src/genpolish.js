@@ -22,6 +22,14 @@
       // The existing approach ladder is immediately left of the shop. Leave a two-tile doorway into it.
       ND.setTile(l,x0,y0+2,0);
       ND.setTile(l,x0,y0+3,0);
+
+      // Shops are currently single-story. A certified route ladder can be generated through
+      // the same room before shop dressing happens, which makes it appear to pierce the
+      // shop floor. Remove ladder cells from the shop volume and one tile beneath its floor.
+      // The lower route ladder still begins at the public corridor below, while the intended
+      // shop approach ladder at x0-1 remains untouched.
+      for(let y=y0;y<=floorY+1;y++)for(let x=x0;x<=x1;x++)l.ladders[y*ND.C.cols+x]=0;
+
       // Do not refill any floor cells the route-repair pass intentionally carved for a descent shaft.
       const floorCols=[];for(let x=x0+1;x<x1;x++)if(ND.solid(l,x,floorY))floorCols.push(x);
       q.enclosed=true;q.entry='left';
@@ -99,7 +107,7 @@
 
   ND.generate=function(seed,stage=1){
     const l=baseGenerate(seed,stage);
-    const originalTiles=l.tiles.slice();
+    const originalTiles=l.tiles.slice(),originalLadders=l.ladders.slice();
     encloseShops(l);
     reduceThreats(l,seed,stage);
     polishTraps(l);
@@ -107,7 +115,7 @@
     if(check.ok)l.validation=check;
     else{
       // Shop dressing must never compromise the certified natural route.
-      l.tiles=originalTiles;
+      l.tiles=originalTiles;l.ladders=originalLadders;
       for(const q of l.shops)q.enclosed=false;
       polishTraps(l);
       l.validation=ND.validate(l);
