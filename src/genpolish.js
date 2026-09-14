@@ -26,11 +26,17 @@
       const floorCols=[];for(let x=x0+1;x<x1;x++)if(ND.solid(l,x,floorY))floorCols.push(x);
       q.enclosed=true;q.entry='left';
 
+      let merchantCol=null;
+      if(floorCols.length){
+        const left=floorCols[0],right=floorCols[floorCols.length-1];
+        merchantCol=(left-x0)<=(x1-right)?left:right;
+      }
+      const stockCols=floorCols.filter(x=>x!==merchantCol);
       const stock=l.spawns.filter(s=>s.kind==='item'&&s.shop===q.id);
-      const itemCols=floorCols.length>=3?[floorCols[0],floorCols[Math.floor((floorCols.length-1)/2)],floorCols[Math.max(0,floorCols.length-2)]]:floorCols;
+      const itemCols=stockCols.length>=3?[stockCols[0],stockCols[Math.floor((stockCols.length-1)/2)],stockCols[stockCols.length-1]]:stockCols;
       stock.forEach((s,i)=>{const col=itemCols[Math.min(i,itemCols.length-1)];if(col!==undefined){s.x=(col+.5)*32;s.y=floorY*32;}});
       const merchant=l.spawns.find(s=>s.kind==='enemy'&&s.type==='merchant'&&s.shop===q.id);
-      if(merchant&&floorCols.length){const col=floorCols[floorCols.length-1];merchant.x=(col+.5)*32;merchant.y=floorY*32;merchant.homeX=merchant.x;merchant.homeY=merchant.y;}
+      if(merchant&&merchantCol!==null){merchant.x=(merchantCol+.5)*32;merchant.y=floorY*32;merchant.homeX=merchant.x;merchant.homeY=merchant.y;}
     }
   }
 
