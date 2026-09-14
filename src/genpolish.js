@@ -92,7 +92,10 @@
       }
     }
   }
-  function polishTraps(l){configureCrushers(l);separatePickupsFromTraps(l);}
+  function removeConflictingLasers(l){
+    l.traps=l.traps.filter(t=>t.type!=='laser'||!l.spawns.some(s=>pickupKind(s)&&hazardOverlap(s,t)));
+  }
+  function polishTraps(l){configureCrushers(l);separatePickupsFromTraps(l);removeConflictingLasers(l);}
 
   ND.generate=function(seed,stage=1){
     const l=baseGenerate(seed,stage);
