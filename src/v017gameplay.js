@@ -14,7 +14,7 @@
     const dx=bx-ax,dy=by-ay,d=Math.hypot(dx,dy),steps=Math.max(1,Math.ceil(d/7));
     for(let i=1;i<steps;i++){
       const x=ax+dx*i/steps,y=ay+dy*i/steps;
-      if(ND.solid(l,Math.floor(x/32),Math.floor(y/32)))return false;
+      if(ND.pointBlocked?ND.pointBlocked(l,x,y):ND.solid(l,Math.floor(x/32),Math.floor(y/32)))return false;
     }
     return true;
   }
@@ -97,7 +97,7 @@
       s.life-=dt;if(s.type==='disc'&&s.life<.8){const dx=this.p.x-s.x,dy=this.p.y-14-s.y,d=Math.hypot(dx,dy);if(d<18){s.life=0;continue;}s.vx=dx/d*420;s.vy=dy/d*420;}
       const steps=Math.ceil(Math.hypot(s.vx,s.vy)*dt/6);for(let j=0;j<steps&&s.life>0;j++){
         s.x+=s.vx*dt/steps;s.y+=s.vy*dt/steps;let tx=Math.floor(s.x/32),ty=Math.floor(s.y/32),tile=ND.tileAt(this.l,tx,ty);
-        if(tile&&s.type!=='disc'){
+        if((ND.pointBlocked?ND.pointBlocked(this.l,s.x,s.y):tile)&&s.type!=='disc'){
           if(tile===ND.TILE.GLASS||tile===ND.TILE.REACTOR)this.breakTile(tx,ty,1,s.owner);
           if(s.type==='bolt')this.spawn({kind:'boltPickup',x:s.x-Math.sign(s.vx)*12,y:s.y,vy:0});
           if(tile===ND.TILE.STEEL&&!s.bounced&&s.type==='pulse'){s.vx*=-.8;s.bounced=true;this.fx(s.x,s.y,'#c4e9ff',4);}
