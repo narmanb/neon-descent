@@ -223,6 +223,82 @@ const ND = (() => {
 })();
 if(typeof module!=='undefined')module.exports=ND;
 </script><script>'use strict';
+(() => {
+  const baseGenerate=ND.generate;
+  const specialMimic=(l,s)=>s.type==='mimic'&&l.secrets.some(q=>Math.hypot(q.x-s.x,q.y-s.y)<70);
+
+  function encloseShops(l){
+    const protectedCells=new Set();
+    for(const s of l.route)if(s.row<3)for(let y=s.floor-3;y<s.floor+8;y++){
+      protectedCells.add(y*ND.C.cols+s.shaft);protectedCells.add(y*ND.C.cols+s.shaft+1);
+    }
+    const protectedCell=(x,y)=>protectedCells.has(y*ND.C.cols+x);
+    const wall=(x,y)=>{if(!protectedCell(x,y))ND.setTile(l,x,y,1);};
+
+    for(const q of l.shops){
+      const x0=Math.round(q.x/32),y0=Math.round(q.y/32),tilesWide=Math.round(q.w/32),tilesHigh=Math.round(q.h/32);
+      const x1=x0+tilesWide-1,floorY=y0+tilesHigh;
+      for(let x=x0;x<=x1;x++)wall(x,y0);
+      for(let y=y0;y<floorY;y++){
+        wall(x0,y);
+        wall(x1,y);
+      }
+      // The existing approach ladder is immediately left of the shop. Leave a two-tile doorway into it.
+      ND.setTile(l,x0,y0+2,0);
+      ND.setTile(l,x0,y0+3,0);
+      // Do not refill any floor cells the route-repair pass intentionally carved for a descent shaft.
+      const floorCols=[];for(let x=x0+1;x<x1;x++)if(ND.solid(l,x,floorY))floorCols.push(x);
+      q.enclosed=true;q.entry='left';
+
+      let merchantCol=null;
+      if(floorCols.length){
+        const left=floorCols[0],right=floorCols[floorCols.length-1];
+        merchantCol=(left-x0)<=(x1-right)?left:right;
+      }
+      const stockCols=floorCols.filter(x=>x!==merchantCol);
+      const stock=l.spawns.filter(s=>s.kind==='item'&&s.shop===q.id);
+      const itemCols=stockCols.length>=3?[stockCols[0],stockCols[Math.floor((stockCols.length-1)/2)],stockCols[stockCols.length-1]]:stockCols;
+      stock.forEach((s,i)=>{const col=itemCols[Math.min(i,itemCols.length-1)];if(col!==undefined){s.x=(col+.5)*32;s.y=floorY*32;}});
+      const merchant=l.spawns.find(s=>s.kind==='enemy'&&s.type==='merchant'&&s.shop===q.id);
+      if(merchant&&merchantCol!==null){merchant.x=(merchantCol+.5)*32;merchant.y=floorY*32;merchant.homeX=merchant.x;merchant.homeY=merchant.y;}
+    }
+  }
+
+  function reduceThreats(l,seed,stage){
+    const random=ND.rng((seed^Math.imul(stage,0x9e3779b1)^0x4e454f4e)>>>0);
+    const safeRadius=340,trapSafeRadius=260;
+    const ambient=[],other=[];
+    for(const s of l.spawns){
+      const isAmbient=s.kind==='enemy'&&s.type!=='merchant'&&!specialMimic(l,s);
+      if(!isAmbient){other.push(s);continue;}
+      if(Math.hypot(s.x-l.entrance.x,s.y-l.entrance.y)<safeRadius)continue;
+      ambient.push(s);
+    }
+    for(let i=ambient.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[ambient[i],ambient[j]]=[ambient[j],ambient[i]];}
+    const maxAmbient=8+stage*2+(l.modifier==='Security Alert'?2:0);
+    const kept=ambient.slice(0,maxAmbient);
+    l.spawns=[...other,...kept];
+    l.traps=l.traps.filter(t=>Math.hypot(t.x-l.entrance.x,t.y-l.entrance.y)>=trapSafeRadius);
+    l.spawnSafety={radius:safeRadius,trapRadius:trapSafeRadius,ambientEnemies:kept.length,maxAmbient};
+  }
+
+  ND.generate=function(seed,stage=1){
+    const l=baseGenerate(seed,stage);
+    const originalTiles=l.tiles.slice();
+    encloseShops(l);
+    reduceThreats(l,seed,stage);
+    const check=ND.validate(l);
+    if(check.ok)l.validation=check;
+    else{
+      // Shop dressing must never compromise the certified natural route.
+      l.tiles=originalTiles;
+      for(const q of l.shops)q.enclosed=false;
+      l.validation=ND.validate(l);
+    }
+    return l;
+  };
+})();
+</script><script>'use strict';
 Object.assign(window,{ND});
 const {C,TILE,ITEMS,item,rng,clamp,approach,dist,tileAt,setTile,solid,blocked,body,move,ladder,generate}=ND;
 const Game = {
@@ -601,6 +677,30 @@ const Game = {
   pause(){if(this.mode==='play'){this.mode='pause';Input.reset();UI.pause();}else if(this.mode==='pause'){this.mode='play';UI.close();Input.reset();}},
 };
 window.Game=Game;
+</script><script>'use strict';
+(() => {
+  const baseUpdatePlayer=Game.updatePlayer;
+  function touchesWall(l,p,dir){
+    return !!dir&&!ND.blocked(l,p.x,p.y,p.w,p.h)&&ND.blocked(l,p.x+dir*8,p.y,p.w,p.h);
+  }
+
+  Game.updatePlayer=function(dt){
+    const p=this.p;
+    baseUpdatePlayer.call(this,dt);
+    if(!p||p.dead||p.ledge||!p.passives?.has('grip')){if(p)p.gripCling=0;return;}
+    if(p.stun>0){p.gripCling=0;return;}
+
+    const axis=Input.axis(),up=Input.down('up'),down=Input.down('down');
+    let preferred=axis?Math.sign(axis):(p.face||1);
+    let dir=touchesWall(this.l,p,preferred)?preferred:touchesWall(this.l,p,-preferred)?-preferred:0;
+    if(dir&&(up||down)){
+      const first=p.gripCling!==dir;
+      p.gripCling=dir;p.face=dir;p.climb=true;p.ground=false;p.platform=null;p.vx=0;p.vy=up?-120:120;p.fallStart=p.y;
+      if(first){this.fx(p.x+dir*10,p.y-p.h*.55,'#73e0b6',7,45);this.sound('ui');if(!this.gripHintShown){this.gripHintShown=true;this.message('MAGNETIC GRIP  /  Hold UP or DOWN against a wall to climb.',4);}}
+      else if(Math.floor(this.time*12)!==Math.floor((this.time-dt)*12))this.fx(p.x+dir*10,p.y-p.h*.55,'#73e0b6',2,22);
+    }else p.gripCling=0;
+  };
+})();
 </script><script>'use strict';
 const Render={
   canvas:null,ctx:null,w:960,h:480,scale:1,cache:{},t:0,
@@ -986,6 +1086,122 @@ boot();
       c.restore();
     };
   }
+})();
+</script><script>'use strict';
+(() => {
+  const defaults={controlMode:'dpad',touchVisible:true,zoom:1.12};
+  let settings={...defaults};
+  try{settings={...settings,...JSON.parse(localStorage.getItem('neon-polish-settings')||'{}')};}catch{}
+  settings.zoom=Math.max(.95,Math.min(1.28,Number(settings.zoom)||defaults.zoom));
+  if(!['dpad','fixed','floating'].includes(settings.controlMode))settings.controlMode='dpad';
+  settings.touchVisible=settings.touchVisible!==false;
+
+  const save=()=>{try{localStorage.setItem('neon-polish-settings',JSON.stringify(settings));}catch{}};
+
+  // Slightly closer default camera, with an options slider for personal preference.
+  Render.zoom=settings.zoom;
+  Render.resize=function(){
+    const d=Math.min(window.devicePixelRatio||1,2),viewH=440/(this.zoom||1);
+    this.canvas.width=Math.round(innerWidth*d);this.canvas.height=Math.round(innerHeight*d);
+    this.w=innerWidth/innerHeight*viewH;this.h=viewH;this.scale=this.canvas.height/viewH;
+  };
+  Render.resize();
+
+  const style=document.createElement('style');
+  style.textContent=`
+    #analog-layer{position:fixed;inset:0;pointer-events:none;z-index:2}
+    #analog-catch{position:fixed;left:0;top:58px;width:48vw;bottom:0;pointer-events:none;touch-action:none}
+    #analog-base{position:fixed;width:116px;height:116px;border-radius:50%;border:1px solid #9bcad36b;background:#173c525c;box-shadow:inset 0 0 0 14px #0c263557,0 5px 18px #04111e55;backdrop-filter:blur(2px);pointer-events:none;display:none}
+    #analog-knob{position:absolute;left:33px;top:33px;width:50px;height:50px;border-radius:50%;background:#75cbbcaa;border:1px solid #caffedaa;box-shadow:0 3px 12px #04111e88;transform:translate(0,0)}
+    body.touch-off #touch,body.touch-off #analog-layer{display:none!important}
+    body.control-fixed #touch .pad,body.control-floating #touch .pad{display:none!important}
+    body.control-fixed #analog-base{display:block;left:max(27px,env(safe-area-inset-left));bottom:25px;pointer-events:auto}
+    body.control-floating #analog-catch{pointer-events:auto}
+    body.control-floating #analog-base.active{display:block}
+    .options-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;margin:18px 0 24px}
+    .options-grid label{display:flex;flex-direction:column;gap:8px;color:#a9c4d0;font-size:11px}
+    .options-grid select,.options-grid input[type=range]{width:100%;min-height:36px;background:#071e2b;color:#d3e9e9;border:1px solid #365c6e;border-radius:4px;padding:6px;accent-color:var(--cyan)}
+    .options-grid .check{flex-direction:row;align-items:center;min-height:36px}.options-grid .check input{width:18px;height:18px;accent-color:var(--cyan)}
+    @media(max-width:620px){.options-grid{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(style);
+
+  const layer=document.createElement('div');layer.id='analog-layer';
+  layer.innerHTML='<div id="analog-catch"></div><div id="analog-base"><div id="analog-knob"></div></div>';
+  document.body.appendChild(layer);
+  const catchZone=document.getElementById('analog-catch'),base=document.getElementById('analog-base'),knob=document.getElementById('analog-knob');
+  Input.analog={x:0,y:0};
+  const baseDown=Input.down,baseAxis=Input.axis,baseReset=Input.reset;
+  Input.down=function(a){
+    if(a==='left'&&this.analog.x<-.24)return true;if(a==='right'&&this.analog.x>.24)return true;
+    if(a==='up'&&this.analog.y<-.30)return true;if(a==='down'&&this.analog.y>.30)return true;
+    return baseDown.call(this,a);
+  };
+  Input.axis=function(){return Math.abs(this.analog.x)>.15?this.analog.x:baseAxis.call(this);};
+  Input.reset=function(){this.analog.x=this.analog.y=0;knob.style.transform='translate(0px,0px)';base.classList.remove('active');return baseReset.call(this);};
+
+  let pointer=null,origin={x:0,y:0};const radius=39;
+  const placeBase=(x,y)=>{base.style.left=(x-58)+'px';base.style.top=(y-58)+'px';base.style.bottom='auto';};
+  const updateAnalog=(x,y)=>{
+    let dx=x-origin.x,dy=y-origin.y,d=Math.hypot(dx,dy);if(d>radius){dx*=radius/d;dy*=radius/d;}
+    Input.analog.x=dx/radius;Input.analog.y=dy/radius;knob.style.transform=`translate(${dx}px,${dy}px)`;
+  };
+  const start=(e,floating)=>{if(pointer!==null)return;e.preventDefault();pointer=e.pointerId;e.currentTarget.setPointerCapture?.(e.pointerId);if(floating){origin={x:e.clientX,y:e.clientY};placeBase(origin.x,origin.y);base.classList.add('active');}else{const r=base.getBoundingClientRect();origin={x:r.left+r.width/2,y:r.top+r.height/2};}updateAnalog(e.clientX,e.clientY);};
+  const move=e=>{if(e.pointerId===pointer){e.preventDefault();updateAnalog(e.clientX,e.clientY);}};
+  const end=e=>{if(e.pointerId!==pointer)return;pointer=null;Input.analog.x=Input.analog.y=0;knob.style.transform='translate(0px,0px)';if(settings.controlMode==='floating')base.classList.remove('active');};
+  base.addEventListener('pointerdown',e=>start(e,false));base.addEventListener('pointermove',move);base.addEventListener('pointerup',end);base.addEventListener('pointercancel',end);
+  catchZone.addEventListener('pointerdown',e=>start(e,true));catchZone.addEventListener('pointermove',move);catchZone.addEventListener('pointerup',end);catchZone.addEventListener('pointercancel',end);
+
+  function apply(){
+    document.body.classList.toggle('touch-off',!settings.touchVisible);
+    document.body.classList.remove('control-dpad','control-fixed','control-floating');document.body.classList.add('control-'+settings.controlMode);
+    Render.zoom=settings.zoom;Render.resize();save();
+  }
+
+  function decorateTitle(){
+    const row=document.querySelector('.title-card .start-row');if(row&&!document.getElementById('title-options')){const b=document.createElement('button');b.className='secondary';b.id='title-options';b.textContent='OPTIONS';b.onclick=()=>showOptions('title');row.appendChild(b);}
+  }
+  function decoratePause(){
+    const row=document.querySelector('.menu-card .pause-row');if(row&&!document.getElementById('pause-options')){const b=document.createElement('button');b.className='secondary';b.id='pause-options';b.textContent='OPTIONS';b.onclick=()=>showOptions('pause');row.appendChild(b);}
+  }
+  const oldTitle=UI.title.bind(UI),oldPauseMenu=UI.pause.bind(UI);
+  UI.title=function(){oldTitle();decorateTitle();};
+  UI.pause=function(){oldPauseMenu();decoratePause();};
+
+  function showOptions(returnTo='pause'){
+    const wasPlaying=Game.mode==='play';if(wasPlaying){Game.mode='pause';Input.reset();}
+    UI.show(`<div class="menu-card"><div class="eyebrow">SYSTEM OPTIONS</div><h2>Controls & view</h2><div class="options-grid">
+      <label>Movement control<select id="opt-control"><option value="dpad">D-pad</option><option value="fixed">Fixed analog stick</option><option value="floating">Floating analog stick</option></select></label>
+      <label class="check"><input id="opt-touch" type="checkbox"> Show on-screen touch controls</label>
+      <label>Camera zoom <input id="opt-zoom" type="range" min=".95" max="1.28" step=".01"><span id="opt-zoom-value"></span></label>
+      <label>Touch opacity <input id="opt-opacity" type="range" min=".25" max="1" step=".05"></label>
+      <label>Touch size <input id="opt-size" type="range" min=".8" max="1.2" step=".05"></label>
+    </div><div class="pause-row"><button class="primary" id="opt-back">BACK</button><button class="secondary" id="opt-defaults">DEFAULTS</button></div></div>`);
+    const control=document.getElementById('opt-control'),touch=document.getElementById('opt-touch'),zoom=document.getElementById('opt-zoom'),zv=document.getElementById('opt-zoom-value'),opacity=document.getElementById('opt-opacity'),size=document.getElementById('opt-size');
+    control.value=settings.controlMode;touch.checked=settings.touchVisible;zoom.value=settings.zoom;opacity.value=UI.opacity;size.value=UI.size;
+    const refreshZoom=()=>zv.textContent=Math.round(settings.zoom*100)+'%';refreshZoom();
+    control.onchange=()=>{settings.controlMode=control.value;apply();};touch.onchange=()=>{settings.touchVisible=touch.checked;apply();};
+    zoom.oninput=()=>{settings.zoom=Number(zoom.value);apply();refreshZoom();};
+    opacity.oninput=()=>{UI.opacity=Number(opacity.value);UI.applyControls();};size.oninput=()=>{UI.size=Number(size.value);UI.applyControls();};
+    document.getElementById('opt-defaults').onclick=()=>{settings={...defaults};UI.opacity=.62;UI.size=1;UI.applyControls();apply();showOptions(returnTo);};
+    document.getElementById('opt-back').onclick=()=>{
+      if(returnTo==='title'){Game.mode='title';UI.title();}
+      else if(returnTo==='play'||wasPlaying){Game.mode='play';UI.close();Input.reset();}
+      else{Game.mode='pause';UI.pause();}
+    };
+  }
+
+  const tools=document.querySelector('.tools');if(tools&&!document.getElementById('options')){const b=document.createElement('button');b.id='options';b.setAttribute('aria-label','Options');b.textContent='⚙';b.onclick=()=>showOptions(Game.mode==='play'?'play':Game.mode==='title'?'title':'pause');tools.insertBefore(b,document.getElementById('pause'));}
+  decorateTitle();decoratePause();apply();
+
+  // Make Magnetic Grip activation unmistakable without replacing the base character art.
+  const baseHumanoid=Render.humanoid;
+  Render.humanoid=function(e,player=true){
+    baseHumanoid.call(this,e,player);if(!player||!e.gripCling||e.ledge)return;
+    const c=this.ctx,dir=e.gripCling,pulse=.7+.3*Math.sin(this.t*14);c.save();c.translate(e.x,e.y);c.scale(dir,1);
+    this.line(7,-27,14,-30,'#73e0b6',3);this.line(7,-17,14,-20,'#73e0b6',3);this.circle(14,-30,3,'#b9fff0');this.circle(14,-20,3,'#b9fff0');
+    c.globalAlpha=pulse;this.line(16,-34,20,-38,'#8ff7ff',1);this.line(17,-25,22,-26,'#8ff7ff',1);this.line(16,-15,20,-11,'#8ff7ff',1);c.restore();
+  };
 })();
 </script>
 </body></html>
