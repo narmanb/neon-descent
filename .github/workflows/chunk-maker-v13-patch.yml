@@ -1,0 +1,121 @@
+name: Apply Chunk Maker v1.3 Patch
+
+on:
+  push:
+    branches:
+      - chunk-maker-v13-zoom-composites
+    paths:
+      - '.github/workflows/chunk-maker-v13-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply Chunk Maker v1.3 changes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('tools/chunk-maker.html')
+          s = p.read_text(encoding='utf-8')
+
+          def once(old, new, label):
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              s = s.replace(old, new, 1)
+
+          def replace_line(prefix, new_line, label):
+              global s
+              trailing = s.endswith('\n')
+              lines = s.splitlines()
+              hits = [i for i, line in enumerate(lines) if line.startswith(prefix)]
+              if len(hits) != 1:
+                  raise SystemExit(f'{label}: expected 1 line, found {len(hits)}')
+              lines[hits[0]] = new_line
+              s = '\n'.join(lines) + ('\n' if trailing else '')
+
+          once("button.active{border-color:var(--cyan);background:#174557;box-shadow:0 0 0 1px #79ead833 inset}.hidden", "button.active{border-color:var(--cyan);background:#174557;box-shadow:0 0 0 1px #79ead833 inset}.zoom-btn{min-width:36px;padding:6px 8px;font-weight:900;font-size:18px;line-height:1}.hidden", 'zoom button CSS')
+          once('<div class="brand">NEON DESCENT <span>CHUNK MAKER</span></div>', '<div class="brand"><span>CHUNK MAKER</span></div>', 'short toolbar title')
+          once('<button id="redo">REDO</button><button id="validate"', '<button id="redo">REDO</button><button id="zoomOut" class="zoom-btn" aria-label="Zoom out" title="Zoom out">−</button><button id="zoomIn" class="zoom-btn" aria-label="Zoom in" title="Zoom in">+</button><button id="validate"', 'zoom toolbar controls')
+          once('<span class="pill">V1.2</span>', '<span class="pill">V1.3</span>', 'version pill')
+          once('>Player ghost</label>', '>Brush preview</label>', 'brush preview label')
+          once("undo:$('undo'),redo:$('redo'),validate:$('validate')", "undo:$('undo'),redo:$('redo'),zoomOut:$('zoomOut'),zoomIn:$('zoomIn'),validate:$('validate')", 'zoom UI refs')
+
+          once("halfRight:{label:'Half Right',color:'#667987',stroke:'#8aa0ae',pass:true},thinSolid:", "halfRight:{label:'Half Right',color:'#667987',stroke:'#8aa0ae',pass:true},threeQuarterBR:{label:'L Corner · Open BR',color:'#667987',stroke:'#8aa0ae'},threeQuarterBL:{label:'L Corner · Open BL',color:'#667987',stroke:'#8aa0ae'},threeQuarterTR:{label:'L Corner · Open TR',color:'#667987',stroke:'#8aa0ae'},threeQuarterTL:{label:'L Corner · Open TL',color:'#667987',stroke:'#8aa0ae'},thinSolid:", 'composite tile palette')
+          once("let cell=42,mode='tiles'", "const ZOOM_LEVELS=[.65,.8,1,1.25,1.5,1.8,2.2];let zoomIndex=2,cell=42,mode='tiles'", 'zoom state')
+          once("const clone=o=>JSON.parse(JSON.stringify(o)),idx=(x,y)=>y*chunk.size[0]+x,inBounds=(x,y)=>x>=0&&y>=0&&x<chunk.size[0]&&y<chunk.size[1];", "const clone=o=>JSON.parse(JSON.stringify(o)),idx=(x,y)=>y*chunk.size[0]+x,inBounds=(x,y)=>x>=0&&y>=0&&x<chunk.size[0]&&y<chunk.size[1];\nconst HALF_STACK={'halfTop|halfLeft':'threeQuarterBR','halfLeft|halfTop':'threeQuarterBR','halfTop|halfRight':'threeQuarterBL','halfRight|halfTop':'threeQuarterBL','halfBottom|halfLeft':'threeQuarterTR','halfLeft|halfBottom':'threeQuarterTR','halfBottom|halfRight':'threeQuarterTL','halfRight|halfBottom':'threeQuarterTL'},COMPOSITE_PARTS={threeQuarterBR:['halfTop','halfLeft'],threeQuarterBL:['halfTop','halfRight'],threeQuarterTR:['halfBottom','halfLeft'],threeQuarterTL:['halfBottom','halfRight']};\nfunction resolveTilePaint(existing,next){if(existing===next)return existing;const stacked=HALF_STACK[existing+'|'+next];if(stacked)return stacked;if(COMPOSITE_PARTS[existing]?.includes(next))return existing;return next;}", 'restricted half-tile stacking')
+
+          replace_line("function applyPan(){", "function applyPan(){ui.stage.style.transform=`translate(calc(-50% + ${panX}px),calc(-50% + ${panY}px))`;}function centerView(){panX=0;panY=0;applyPan();}function updateZoomButtons(){ui.zoomOut.disabled=zoomIndex===0;ui.zoomIn.disabled=zoomIndex===ZOOM_LEVELS.length-1;const pct=Math.round(ZOOM_LEVELS[zoomIndex]*100);ui.zoomOut.title=`Zoom out · ${pct}%`;ui.zoomIn.title=`Zoom in · ${pct}%`;}function changeZoom(delta){const next=Math.max(0,Math.min(ZOOM_LEVELS.length-1,zoomIndex+delta));if(next===zoomIndex)return;zoomIndex=next;resizeCanvas();}function resizeCanvas(){const [w,h]=chunk.size,ww=ui.workspace.clientWidth||innerWidth,wh=ui.workspace.clientHeight||innerHeight;let fit=Math.max(26,Math.min(52,Math.floor(Math.min((ww-60)/Math.max(4,w),(wh-60)/Math.max(4,h)))));if(innerWidth<900)fit=Math.max(30,Math.min(46,fit));cell=Math.max(18,Math.min(96,Math.round(fit*ZOOM_LEVELS[zoomIndex])));ui.canvas.width=w*cell;ui.canvas.height=h*cell;applyPan();updateZoomButtons();render();}", 'zoom behavior')
+
+          once("else if(type==='halfRight')ctx.fillStyle=c,ctx.fillRect(px+cell/2,py,cell/2,cell);else if(type==='thinSolid')", "else if(type==='halfRight')ctx.fillStyle=c,ctx.fillRect(px+cell/2,py,cell/2,cell);else if(type.startsWith('threeQuarter')){const map={threeQuarterBR:[[0,0],[1,0],[1,.5],[.5,.5],[.5,1],[0,1]],threeQuarterBL:[[0,0],[1,0],[1,1],[.5,1],[.5,.5],[0,.5]],threeQuarterTR:[[0,0],[.5,0],[.5,.5],[1,.5],[1,1],[0,1]],threeQuarterTL:[ [.5,0],[1,0],[1,1],[0,1],[0,.5],[.5,.5] ]};poly(P(map[type]),c,s);}else if(type==='thinSolid')", 'composite tile renderer')
+
+          brush_preview = "function drawBrushPreview(){if(!hover)return;ctx.save();ctx.globalAlpha=.48;if(mode==='tiles'){if(brush==='air'){ctx.strokeStyle='#ff9b91';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(hover.x*cell+cell*.28,hover.y*cell+cell*.28);ctx.lineTo(hover.x*cell+cell*.72,hover.y*cell+cell*.72);ctx.moveTo(hover.x*cell+cell*.72,hover.y*cell+cell*.28);ctx.lineTo(hover.x*cell+cell*.28,hover.y*cell+cell*.72);ctx.stroke();}else drawTile(brush,hover.x,hover.y);}else if(mode==='objects'){const d=OBJECT[objectBrush]||OBJECT.decor,px=(hover.x+.5)*cell,py=(hover.y+.5)*cell;if(objectBrush==='erase'){ctx.strokeStyle=d.color;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(px-cell*.18,py-cell*.18);ctx.lineTo(px+cell*.18,py+cell*.18);ctx.moveTo(px+cell*.18,py-cell*.18);ctx.lineTo(px-cell*.18,py+cell*.18);ctx.stroke();}else{ctx.fillStyle=d.color;ctx.beginPath();ctx.arc(px,py,Math.max(9,cell*.24),0,Math.PI*2);ctx.fill();ctx.fillStyle='#061019';ctx.font=`700 ${Math.max(8,cell*.18)}px ui-monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.glyph,px,py+1);}}else if(mode==='zones'){ctx.fillStyle=ZONE_COLOR[ui.zoneType.value]||'#ffffff44';ctx.fillRect(hover.x*cell+2,hover.y*cell+2,cell-4,cell-4);}ctx.restore();}"
+          once("ctx.restore();}\nfunction render(){", "ctx.restore();}\n" + brush_preview + "\nfunction render(){", 'brush preview helper')
+          old_ghost = "if(hover&&ui.showPlayer.checked){const px=(hover.x+.5)*cell,py=(hover.y+1)*cell,s=cell/32;ctx.save();ctx.globalAlpha=.4;ctx.fillStyle='#dffdf7';ctx.fillRect(px-10*s,py-28*s,20*s,28*s);ctx.restore();}"
+          once(old_ghost, "if(hover&&ui.showPlayer.checked)drawBrushPreview();", 'mode-aware cursor preview')
+
+          once("\nfunction paintZone(pos){", "\nfunction zonesOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}\nfunction sameTypeZoneOverlaps(){const zones=chunk.zones||[],pairs=[];for(let i=0;i<zones.length;i++)for(let j=i+1;j<zones.length;j++)if(zones[i].type===zones[j].type&&zonesOverlap(zones[i],zones[j]))pairs.push([zones[i],zones[j]]);return pairs;}\nfunction paintZone(pos){", 'zone overlap helpers')
+          replace_line("function paintZone(pos){", "function paintZone(pos){if(!zoneAnchor){zoneAnchor=pos;ui.zoneHint.textContent='First corner set. Tap opposite corner to finish zone.';render();return;}const x=Math.min(zoneAnchor.x,pos.x),y=Math.min(zoneAnchor.y,pos.y),w=Math.abs(zoneAnchor.x-pos.x)+1,h=Math.abs(zoneAnchor.y-pos.y)+1,min=Math.max(0,Number(ui.zoneMin.value)||0),max=Math.max(min,Number(ui.zoneMax.value)||min),zone={type:ui.zoneType.value,x,y,w,h,min,max};zoneAnchor=null;const conflict=(chunk.zones||[]).find(z=>z.type===zone.type&&zonesOverlap(z,zone));if(conflict){ui.zoneHint.textContent='Same-type zones cannot overlap. Choose a different area.';setStatus(`${zone.type.toUpperCase()} zone overlaps an existing ${zone.type} zone.`,'warn');render();return;}beginChange();chunk.zones.push(zone);ui.zoneHint.textContent='Zone added. Tap first corner for another.';}", 'prevent same-type zone overlap')
+          replace_line("function paintAt(pos){", "function paintAt(pos){if(!pos)return;strokeChanged=false;if(mode==='tiles'){const i=idx(pos.x,pos.y),next=resolveTilePaint(chunk.tiles[i],brush);if(chunk.tiles[i]===next)return;beginChange();chunk.tiles[i]=next;}else if(mode==='objects'){const at=chunk.objects.findIndex(o=>o.x===pos.x&&o.y===pos.y);if(objectBrush==='erase'){if(at>=0){beginChange();chunk.objects.splice(at,1);}}else{beginChange();if(at>=0)chunk.objects.splice(at,1);chunk.objects.push({type:objectBrush,x:pos.x,y:pos.y,placement:ui.placementMode.value,chance:Math.max(1,Math.min(100,Number(ui.placementChance.value)||50))});}}else if(mode==='zones')paintZone(pos);else togglePort(pos);strokeChanged=false;render();}", 'restricted stack paint path')
+          once("if(z.min>z.max)errors.push(`${z.type} zone minimum exceeds maximum.`);}const solidObj=", "if(z.min>z.max)errors.push(`${z.type} zone minimum exceeds maximum.`);}for(const [a,b] of sameTypeZoneOverlaps())errors.push(`${a.type} zones cannot overlap.`);const solidObj=", 'zone overlap validation')
+          once("ui.fullscreen.onclick=toggleFullscreen;ui.center.onclick=centerView;", "ui.fullscreen.onclick=toggleFullscreen;ui.center.onclick=centerView;ui.zoomOut.onclick=()=>changeZoom(-1);ui.zoomIn.onclick=()=>changeZoom(1);", 'zoom event handlers')
+
+          p.write_text(s, encoding='utf-8')
+
+          tp = Path('tests/chunk-maker-tests.cjs')
+          t = tp.read_text(encoding='utf-8')
+
+          def t_once(old, new, label):
+              nonlocal_t = None
+              count = t.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 test match, found {count}')
+              return t.replace(old, new, 1)
+
+          t = t_once("['wall','halfTop','halfBottom','halfLeft','halfRight','thinSolid'", "['wall','halfTop','halfBottom','halfLeft','halfRight','threeQuarterBR','threeQuarterBL','threeQuarterTR','threeQuarterTL','thinSolid'", 'composite tile tests')
+          t = t_once("'reachablePorts','paintZone','applyPreset']", "'reachablePorts','paintZone','applyPreset','changeZoom','resolveTilePaint','zonesOverlap','sameTypeZoneOverlaps']", 'feature retention tests')
+          anchor = "assert(html.includes('id=\"importTop\"'),'import should be exposed directly on the main toolbar');"
+          extra = "\nassert(html.includes('id=\"zoomOut\"')&&html.includes('id=\"zoomIn\"'),'zoom controls should be exposed on the main toolbar');\nassert(html.includes('V1.3'),'chunk maker should report v1.3');\nassert(html.includes('Brush preview'),'hover cursor should describe the selected brush instead of a fixed player ghost');\nassert(!html.includes('NEON DESCENT <span>CHUNK MAKER</span>'),'toolbar title should be shortened to Chunk Maker');\nassert(html.includes(\"z.type===zone.type&&zonesOverlap(z,zone)\"),'same-type zone overlap should be rejected while painting');"
+          if t.count(anchor) != 1:
+              raise SystemExit('toolbar test insertion anchor missing')
+          t = t.replace(anchor, anchor + extra, 1)
+          t = t.replace("PASS standalone Chunk Maker v1.2 advanced geometry, doors/systems, spawn zones, generation metadata, mobile pan, and v1 import migration", "PASS standalone Chunk Maker v1.3 zoom, composite half-tile stacking, brush previews, zone overlap guards, advanced geometry, and v1 import migration", 1)
+          tp.write_text(t, encoding='utf-8')
+          PY
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run Chunk Maker tests
+        run: node tests/chunk-maker-tests.cjs
+
+      - name: Run full test suite
+        run: npm test
+
+      - name: Run traversal tests
+        run: node tests/traverse.cjs
+
+      - name: Verify build still succeeds
+        run: python3 build.py
+
+      - name: Commit validated changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git restore -- Neon-Descent*.html index.html dist/ 2>/dev/null || true
+          git rm .github/workflows/chunk-maker-v13-patch.yml
+          git add tools/chunk-maker.html tests/chunk-maker-tests.cjs
+          git commit -m "Improve Chunk Maker zoom, geometry stacking, and zones"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
