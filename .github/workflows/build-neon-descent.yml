@@ -16,6 +16,7 @@ on:
       - feature-v018-half-blocks-fullscreen
       - feature-chunk-maker-v1
       - feature-chunk-maker-mobile-pan
+      - feature-v019-chunk-geometry-editor
     paths:
       - 'src/**'
       - 'tools/**'
@@ -42,6 +43,7 @@ jobs:
           node --check src/genpolish.js
           node --check src/v017gen.js
           node --check src/v018geometry.js
+          node --check src/v019geometry.js
           node --check src/grip.js
           node --check src/v014pre.js
           node --check src/v017pre.js
@@ -57,6 +59,7 @@ jobs:
           node --check src/v017gameplay.js
           node --check src/v017polish.js
           node --check src/v018polish.js
+          node --check src/v019polish.js
           node --check src/release.js
       - name: Run system tests
         run: npm test
@@ -64,10 +67,10 @@ jobs:
         run: node tests/traverse.cjs
       - name: Build standalone and Sites bundles
         run: python3 build.py
-      - name: Verify v0.18 artifact
+      - name: Verify v0.19 artifact
         run: |
-          test -f Neon-Descent-v0.18.html
-          grep -q "const VERSION='0.18'" Neon-Descent-v0.18.html
+          test -f Neon-Descent-v0.19.html
+          grep -q "const VERSION='0.19'" Neon-Descent-v0.19.html
       - name: Commit generated playable files
         shell: bash
         run: |
@@ -75,7 +78,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Neon-Descent*.html index.html dist/
           if ! git diff --cached --quiet; then
-            git commit -m "Build playable Neon Descent v0.18 artifacts"
+            git commit -m "Build playable Neon Descent v0.19 artifacts"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 # Feature-branch validation before main promotion.
