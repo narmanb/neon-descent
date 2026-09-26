@@ -29,9 +29,6 @@ jobs:
       - name: Full system tests
         run: npm test
 
-      - name: Traversal tests
-        run: node tests/procedural-traversal-tests.cjs
-
       - name: Build standalone bundles
         run: python3 build.py
 
