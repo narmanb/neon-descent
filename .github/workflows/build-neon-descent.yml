@@ -18,6 +18,7 @@ on:
       - feature-chunk-maker-mobile-pan
       - feature-v019-chunk-geometry-editor
       - feature-v020-ladder-shop-safety
+      - chunk-maker-v1.5-selection-move-previews
     paths:
       - 'src/**'
       - 'tools/**'
