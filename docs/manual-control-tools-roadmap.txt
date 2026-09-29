@@ -1,0 +1,128 @@
+NEON DESCENT - MANUAL CONTROL / EDITOR ROADMAP
+Last updated: 2026-09-29
+
+PURPOSE
+Give the project owner more direct control over content, procedural generation, balance, and testing without needing to edit game code by hand.
+
+1. CHUNK MAKER - FUTURE EXPANSION
+The existing Chunk Maker should become the main authoring tool for level/chunk-specific content.
+
+Potential additions inside the Chunk Maker itself:
+
+- Encounter Editor
+  - Place enemies manually inside a chunk.
+  - Place merchants, loot, hazards, doors, alarms, traps, etc.
+  - Support exact placements as well as weighted/random placements such as "1-2 crawlers in this area."
+  - Allow encounter-specific settings without needing a separate app.
+
+- Procedural Rules Editor
+  - Also belongs in or alongside the Chunk Maker rather than being a totally separate app.
+  - Control which chunk tags can connect.
+  - Control horizontal/vertical connection rules.
+  - Control authored-chunk weighting versus procedural fallback.
+  - Control required exits/ports and traversal requirements.
+  - Control shop/hazard/enemy/chunk frequencies and difficulty weighting.
+  - Potentially expose rules by stage/theme.
+
+The goal is for the Chunk Maker to control both the geometry of authored chunks and the rules that govern how those chunks are used.
+
+2. GAME CONTENT / BALANCE EDITOR - ONE APP
+Rather than creating separate apps for every content type, combine these into one larger browser-based editor/control panel.
+
+Suggested sections/tabs:
+
+- Enemy Editor
+  - HP
+  - speed/movement
+  - damage
+  - detection range
+  - attack cooldowns
+  - spawn rules
+  - drops
+  - stage/theme availability
+  - other enemy-specific behavior values
+
+- Equipment / Weapon Editor
+  - damage
+  - fire rate / attack speed
+  - ammo
+  - melee range
+  - projectile speed
+  - rarity
+  - price
+  - special effects
+  - pickup/spawn rules
+  - weapon/equipment-specific tuning
+
+- Stage / Theme Editor
+  - tilesets
+  - backgrounds
+  - lighting
+  - music
+  - enemy pools
+  - hazard pools
+  - loot pools
+  - stage modifiers
+  - difficulty scaling
+
+- Loot / Shop Editor
+  - shop item pools
+  - item prices
+  - rarity weights
+  - stage restrictions
+  - inventory size
+  - loot/drop tables
+
+This should be one unified content/balance application rather than several disconnected editors.
+
+3. SEED / GENERATION BROWSER - HIGH PRIORITY AFTER AUTHORED CHUNKS ARE IN GAME
+This should become an important testing tool once a useful number of authored chunks exist and the game generator is actually using them.
+
+Desired workflow:
+
+- Batch-generate many complete levels/seeds at once (for example 20-100).
+- Show generated levels as thumbnails/previews.
+- Tap/click a generated level to inspect it in detail.
+- Quickly identify bad layouts, repetitive layouts, traversal problems, bad chunk combinations, poor enemy/hazard placement, etc.
+- Flag or annotate bad generations.
+- Save/favorite particularly good seeds.
+- Launch directly into a selected seed for playtesting.
+- Use this as a practical way to evaluate the procedural generator after authored chunks are integrated.
+
+This is expected to be extremely useful for testing the game once the Chunk Maker content is plugged into the generator.
+
+4. OTHER POTENTIAL TOOLS
+These were discussed but are not yet finalized:
+
+- Animation / Combat Editor
+  - Frame order and timing
+  - per-frame duration
+  - hitboxes
+  - active frames
+  - combo windows
+  - weapon/effect offsets
+  - enlarged preview
+  - draggable overlays for pixel-level alignment
+
+- Live Sandbox / Tuning Room
+  - Spawn arbitrary enemies/items.
+  - Toggle invincibility.
+  - Adjust player/enemy/gameplay values live.
+  - Rapidly test combat, movement, upgrades, and balance.
+
+5. CURRENT COMBAT TEST NOTES - HOLD FOR NEXT REQUEST
+Do not implement these merely because they are recorded here. These are pending notes for the next combat-test update when requested.
+
+- The normal aerial down/forward slash animation likely needs its visible slash effect extended somewhat.
+- Ground pound / landing slash currently triggers slightly too easily while moving through the air.
+- Make only the tiniest adjustment possible to make an accidental moving ground pound less likely.
+- Vertical jump with no left/right input should continue to intentionally favor/trigger the ground-pound attack.
+
+GENERAL DIRECTION
+The overall editor strategy should favor a small number of powerful tools with tabs/modes rather than many tiny standalone apps:
+
+- Chunk Maker = chunk geometry + encounters + procedural chunk rules.
+- Content/Balance Editor = enemies + equipment/weapons + stages/themes + loot/shops.
+- Seed/Generation Browser = procedural-generation inspection and playtest launcher.
+
+The point of all of these tools is to let the project owner manually steer the game and procedural generator without having to describe every change in code terms.
